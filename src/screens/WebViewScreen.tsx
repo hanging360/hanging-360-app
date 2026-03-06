@@ -41,15 +41,18 @@ export default function WebViewScreen() {
 
   return (
     <div className="webview-screen">
-      <button className="webview-back" onClick={() => navigate("/")}>
-        ← Back
-      </button>
+      {showBack && (
+        <button className="webview-back" onClick={() => navigate("/")}>
+          ← Back
+        </button>
+      )}
       <iframe
         ref={iframeRef}
         src={url}
         className="webview-iframe"
         title="Hanging 360"
         allow="camera; microphone; geolocation"
+        onLoad={handleIframeLoad}
       />
     </div>
   );
