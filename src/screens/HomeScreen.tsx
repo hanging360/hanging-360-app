@@ -51,22 +51,22 @@ export default function HomeScreen() {
 
   return (
     <main className="home-screen">
-      <div className="home-brand">
-        <img src={logo} alt="Hanging 360" className="home-logo" />
-        <h1>Hanging 360</h1>
-        
-      </div>
-      <div className="home-roles">
-        {roles.map((r) => (
-          <button
-            key={r.label}
-            className="role-btn"
-            onClick={() => handleRole(r.path)}
-          >
-            <span className="role-icon">{r.icon}</span>
-            <span className="role-label">{r.label}</span>
-          </button>
-        ))}
+      <div className="home-card">
+        <div className="home-brand">
+          <img src={logo} alt="Hanging 360" className="home-logo" />
+        </div>
+        <div className="home-roles">
+          {roles.map((r) => (
+            <button
+              key={r.label}
+              className="role-btn"
+              onClick={() => handleRole(r.path)}
+            >
+              <span className="role-icon">{r.icon}</span>
+              <span className="role-label">{r.label}</span>
+            </button>
+          ))}
+        </div>
       </div>
     </main>
   );
