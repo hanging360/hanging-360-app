@@ -11,7 +11,7 @@ const roles = [
     subtitle: "",
     path: "/my-appointment",
     icon: (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
         <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
         <circle cx="12" cy="7" r="4"/>
       </svg>
@@ -22,7 +22,7 @@ const roles = [
     subtitle: "",
     path: "/login",
     icon: (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
         <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
       </svg>
     ),
@@ -32,7 +32,7 @@ const roles = [
     subtitle: "",
     path: "/promotional",
     icon: (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
         <path d="m3 11 18-5v12L3 13v-2z"/>
         <path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/>
       </svg>
@@ -62,7 +62,7 @@ export default function HomeScreen() {
         {roles.map((r, i) => (
           <button
             key={r.label}
-            className={`role-btn${i === 0 ? " role-btn-first" : ""}${i === roles.length - 1 ? " role-btn-last" : ""}`}
+            className="role-btn"
             onClick={() => handleRole(r.path)}
           >
             <span className="role-icon">{r.icon}</span>

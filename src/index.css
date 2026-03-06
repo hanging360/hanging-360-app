@@ -62,31 +62,25 @@ html, body, #root {
   display: flex;
   flex-direction: column;
   width: 100%;
-  background: #ffffff;
-  border-radius: 12px;
-  overflow: hidden;
+  gap: 10px;
 }
 
 .role-btn {
   display: flex;
   align-items: center;
-  gap: 0.875rem;
-  padding: 14px 16px;
+  gap: 0.75rem;
+  padding: 10px 14px;
   border: none;
   background: #ffffff;
   color: #000000;
-  font-size: 1rem;
+  font-size: 0.9rem;
   font-weight: 400;
   cursor: pointer;
   text-align: left;
   width: 100%;
   transition: background 0.1s;
   font-family: inherit;
-  border-bottom: 0.5px solid rgba(0, 0, 0, 0.1);
-}
-
-.role-btn-last {
-  border-bottom: none;
+  border-radius: 12px;
 }
 
 .role-btn:active {
@@ -97,8 +91,8 @@ html, body, #root {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   border-radius: 7px;
   background: #007aff;
   color: #ffffff;
