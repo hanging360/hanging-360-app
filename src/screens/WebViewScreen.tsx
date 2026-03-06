@@ -29,11 +29,6 @@ export default function WebViewScreen() {
 
   return (
     <div className="webview-screen">
-      {showBack && (
-        <button className="webview-back" onClick={() => navigate("/")}>
-          ← Back
-        </button>
-      )}
       <button
         className="webview-home-btn"
         onClick={() => {
@@ -53,7 +48,7 @@ export default function WebViewScreen() {
         className="webview-iframe"
         title="Hanging 360"
         allow="camera; microphone; geolocation"
-        onLoad={handleIframeLoad}
+        onLoad={() => {}}
       />
     </div>
   );
