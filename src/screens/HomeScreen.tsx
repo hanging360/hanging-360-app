@@ -53,7 +53,9 @@ export default function HomeScreen() {
     <main className="home-screen">
       <div className="home-card">
         <div className="home-brand">
-          <img src={logo} alt="Hanging 360" className="home-logo" />
+          <a href="https://wa.me/17863400825" target="_blank" rel="noopener noreferrer">
+            <img src={logo} alt="Hanging 360" className="home-logo" style={{ cursor: "pointer" }} />
+          </a>
         </div>
         <div className="home-roles">
           {roles.map((r) => (
