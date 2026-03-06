@@ -43,9 +43,14 @@ export default function HomeScreen() {
 
   useEffect(() => {
     SplashScreen.hide().catch(() => {});
-  }, []);
+    const lastRole = localStorage.getItem("lastRole");
+    if (lastRole) {
+      navigate(`/webview?url=${encodeURIComponent(BASE_URL + lastRole)}`, { replace: true });
+    }
+  }, [navigate]);
 
   const handleRole = (path: string) => {
+    localStorage.setItem("lastRole", path);
     navigate(`/webview?url=${encodeURIComponent(BASE_URL + path)}`);
   };
 
