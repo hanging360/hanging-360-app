@@ -7,8 +7,8 @@ const BASE_URL = "https://tech.hanging360.com";
 
 const roles = [
   {
-    label: "Cliente",
-    subtitle: "Gestiona tus citas",
+    label: "Client",
+    subtitle: "Manage your appointments",
     path: "/my-appointment",
     icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -18,8 +18,8 @@ const roles = [
     ),
   },
   {
-    label: "Técnico",
-    subtitle: "Acceso de trabajo",
+    label: "Technician",
+    subtitle: "Work access",
     path: "/login",
     icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -28,8 +28,8 @@ const roles = [
     ),
   },
   {
-    label: "Promocional",
-    subtitle: "Material y ofertas",
+    label: "Promotional",
+    subtitle: "Deals & materials",
     path: "/promotional",
     icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -56,7 +56,7 @@ export default function HomeScreen() {
       <div className="home-brand">
         <img src={logo} alt="Hanging 360" className="home-logo" />
         <h1>Hanging 360</h1>
-        <p>Selecciona tu rol</p>
+        <p>Select your role</p>
       </div>
       <div className="home-roles">
         {roles.map((r, i) => (
