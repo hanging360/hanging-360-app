@@ -55,8 +55,8 @@ export default function HomeScreen() {
         {/* Clavo en la pared */}
         <div className="wall-nail" />
         {/* Soga que conecta clavo al logo */}
-        <svg className="hanging-rope" width="40" height="80" viewBox="0 0 40 80" fill="none">
-          <path d="M20 0 Q18 40 12 78" stroke="#8B7355" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
+        <svg className="hanging-rope" width="40" height="110" viewBox="0 0 40 110" fill="none">
+          <path d="M20 0 Q17 50 10 108" stroke="#8B7355" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
         </svg>
 
         <div className="hanging-frame">
