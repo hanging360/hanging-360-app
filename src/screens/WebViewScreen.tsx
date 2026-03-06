@@ -1,5 +1,5 @@
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { Capacitor } from "@capacitor/core";
 import { Browser } from "@capacitor/browser";
 
@@ -10,6 +10,18 @@ export default function WebViewScreen() {
   const navigate = useNavigate();
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const url = params.get("url") || ALLOWED_ORIGIN;
+  const isLoginUrl = url.includes("/login");
+  const [showBack, setShowBack] = useState(isLoginUrl);
+  const loadCountRef = useRef(0);
+
+  const handleIframeLoad = useCallback(() => {
+    if (isLoginUrl) {
+      loadCountRef.current += 1;
+      if (loadCountRef.current >= 2) {
+        setShowBack(false);
+      }
+    }
+  }, [isLoginUrl]);
 
   // Validate URL belongs to allowed domain
   const isAllowed = url.startsWith(ALLOWED_ORIGIN);
@@ -29,15 +41,18 @@ export default function WebViewScreen() {
 
   return (
     <div className="webview-screen">
-      <button className="webview-back" onClick={() => navigate("/")}>
-        ← Back
-      </button>
+      {showBack && (
+        <button className="webview-back" onClick={() => navigate("/")}>
+          ← Back
+        </button>
+      )}
       <iframe
         ref={iframeRef}
         src={url}
         className="webview-iframe"
         title="Hanging 360"
         allow="camera; microphone; geolocation"
+        onLoad={handleIframeLoad}
       />
     </div>
   );
