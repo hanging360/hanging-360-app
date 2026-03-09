@@ -21,5 +21,20 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      // Security: block right-click, devtools shortcuts, text selection, drag
+      document.addEventListener("contextmenu", function(e) { e.preventDefault(); });
+      document.addEventListener("keydown", function(e) {
+        // F12
+        if (e.key === "F12") { e.preventDefault(); return; }
+        // Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+Shift+C
+        if (e.ctrlKey && e.shiftKey && ["I","J","C"].includes(e.key.toUpperCase())) { e.preventDefault(); return; }
+        // Ctrl+U (view source)
+        if (e.ctrlKey && e.key.toUpperCase() === "U") { e.preventDefault(); return; }
+        // Cmd+Option+I (Mac)
+        if (e.metaKey && e.altKey && e.key.toUpperCase() === "I") { e.preventDefault(); return; }
+      });
+      document.addEventListener("dragstart", function(e) { e.preventDefault(); });
+    </script>
   </body>
 </html>
