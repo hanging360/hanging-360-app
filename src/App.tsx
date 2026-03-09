@@ -8,7 +8,7 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<HomeScreen />} />
-        <Route path="/webview" element={<WebViewScreen />} />
+        <Route path="/v" element={<WebViewScreen />} />
         <Route path="*" element={<NotFoundScreen />} />
       </Routes>
     </BrowserRouter>
