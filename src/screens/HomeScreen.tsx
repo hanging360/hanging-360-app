@@ -37,6 +37,19 @@ const roles = [
       </svg>
     ),
   },
+  {
+    label: "COMP",
+    path: "/comp-appointment",
+    icon: (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
+        <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
+        <line x1="8" y1="10" x2="16" y2="10"/>
+        <line x1="8" y1="14" x2="16" y2="14"/>
+        <line x1="8" y1="18" x2="12" y2="18"/>
+      </svg>
+    ),
+  },
 ] as const;
 
 export default function HomeScreen() {
@@ -52,27 +65,6 @@ export default function HomeScreen() {
     }
   }, [navigate, isNative]);
 
-  if (!isNative) {
-    return (
-      <div style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        height: "100dvh",
-        padding: "2rem",
-        textAlign: "center",
-        background: "#1a1a1a",
-        color: "#fff",
-        fontFamily: "inherit",
-      }}>
-        <h2 style={{ fontSize: "1.5rem", marginBottom: "1rem" }}>Hanging360</h2>
-        <p style={{ color: "#999", maxWidth: "300px" }}>
-          Para acceder, descarga la app desde tu tienda de aplicaciones.
-        </p>
-      </div>
-    );
-  }
 
   const handleRole = (path: string) => {
     localStorage.setItem("lastRole", path);
