@@ -187,9 +187,9 @@ html, body, #root {
 
 /* iOS Grouped List */
 .home-roles {
-  display: flex;
-  flex-direction: row;
-  justify-content: center;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  justify-items: center;
   gap: 0.25rem;
 }
 
