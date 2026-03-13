@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { useEffect } from "react";
 import { SplashScreen } from "@capacitor/splash-screen";
+import { Capacitor } from "@capacitor/core";
 import logo from "@/assets/logo.png";
 
 const BASE_URL = "https://tech.hanging360.com";
@@ -40,14 +41,38 @@ const roles = [
 
 export default function HomeScreen() {
   const navigate = useNavigate();
+  const isNative = Capacitor.isNativePlatform();
 
   useEffect(() => {
+    if (!isNative) return;
     SplashScreen.hide().catch(() => {});
     const lastRole = localStorage.getItem("lastRole");
     if (lastRole) {
       navigate("/v", { replace: true, state: { url: BASE_URL + lastRole } });
     }
-  }, [navigate]);
+  }, [navigate, isNative]);
+
+  if (!isNative) {
+    return (
+      <div style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        height: "100dvh",
+        padding: "2rem",
+        textAlign: "center",
+        background: "#1a1a1a",
+        color: "#fff",
+        fontFamily: "inherit",
+      }}>
+        <h2 style={{ fontSize: "1.5rem", marginBottom: "1rem" }}>Hanging360</h2>
+        <p style={{ color: "#999", maxWidth: "300px" }}>
+          Para acceder, descarga la app desde tu tienda de aplicaciones.
+        </p>
+      </div>
+    );
+  }
 
   const handleRole = (path: string) => {
     localStorage.setItem("lastRole", path);
