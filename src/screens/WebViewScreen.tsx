@@ -66,7 +66,7 @@ export default function WebViewScreen() {
               display: "flex",
               alignItems: "center",
               gap: 8,
-              padding: "12px 20px",
+              padding: "14px 28px",
               background: "#fff",
               color: "#000",
               borderRadius: 12,
