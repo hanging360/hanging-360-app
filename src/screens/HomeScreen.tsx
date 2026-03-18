@@ -68,8 +68,13 @@ export default function HomeScreen() {
 
   const handleRole = (path: string) => {
     const url = BASE_URL + path;
-    localStorage.setItem("lastRole", path);
-    navigate("/v", { state: { url } });
+    if (isNative) {
+      localStorage.setItem("lastRole", path);
+      navigate("/v", { state: { url } });
+      return;
+    }
+
+    window.location.assign(url);
   };
 
   return (
