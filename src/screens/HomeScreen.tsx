@@ -59,13 +59,7 @@ export default function HomeScreen() {
   useEffect(() => {
     if (!isNative) return;
     SplashScreen.hide().catch(() => {});
-    const lastRole = localStorage.getItem("lastRole");
-    if (lastRole) {
-      setTimeout(() => {
-        navigate("/v", { replace: true, state: { url: BASE_URL + lastRole } });
-      }, 500);
-    }
-  }, [navigate, isNative]);
+  }, [isNative]);
 
 
   const handleRole = (path: string) => {
