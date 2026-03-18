@@ -116,12 +116,14 @@ export default function WebViewScreen() {
   return (
     <div className="webview-screen">
       <iframe
+        key={iframeKey}
         ref={iframeRef}
         src={url}
         className="webview-iframe"
         title="Hanging 360"
         allow="camera; microphone; geolocation"
-        onLoad={() => {}}
+        onLoad={() => { retryCount.current = 0; }}
+        onError={handleIframeError}
       />
     </div>
   );
