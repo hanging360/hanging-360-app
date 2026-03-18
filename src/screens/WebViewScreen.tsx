@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from "react-router-dom";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { Capacitor } from "@capacitor/core";
 import { Browser } from "@capacitor/browser";
 import compLogo from "@/assets/comp-logo.png";
@@ -10,8 +10,18 @@ export default function WebViewScreen() {
   const location = useLocation();
   const navigate = useNavigate();
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const [iframeKey, setIframeKey] = useState(0);
+  const retryCount = useRef(0);
+  const MAX_RETRIES = 3;
 
   const url = (location.state as { url?: string })?.url;
+
+  const handleIframeError = useCallback(() => {
+    if (retryCount.current < MAX_RETRIES) {
+      retryCount.current += 1;
+      setTimeout(() => setIframeKey((k) => k + 1), 1000);
+    }
+  }, []);
 
   useEffect(() => {
     if (!url) {
@@ -106,12 +116,14 @@ export default function WebViewScreen() {
   return (
     <div className="webview-screen">
       <iframe
+        key={iframeKey}
         ref={iframeRef}
         src={url}
         className="webview-iframe"
         title="Hanging 360"
         allow="camera; microphone; geolocation"
-        onLoad={() => {}}
+        onLoad={() => { retryCount.current = 0; }}
+        onError={handleIframeError}
       />
     </div>
   );

@@ -61,7 +61,9 @@ export default function HomeScreen() {
     SplashScreen.hide().catch(() => {});
     const lastRole = localStorage.getItem("lastRole");
     if (lastRole) {
-      navigate("/v", { replace: true, state: { url: BASE_URL + lastRole } });
+      setTimeout(() => {
+        navigate("/v", { replace: true, state: { url: BASE_URL + lastRole } });
+      }, 500);
     }
   }, [navigate, isNative]);
 

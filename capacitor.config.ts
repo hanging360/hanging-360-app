@@ -7,6 +7,7 @@ const config: CapacitorConfig = {
   server: {
     url: "https://5b3efdff-0bb6-4b46-b9a0-9667099613c7.lovableproject.com?forceHideBadge=true",
     cleartext: true,
+    allowNavigation: ["tech.hanging360.com"],
   },
   plugins: {
     SplashScreen: {
