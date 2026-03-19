@@ -1,14 +1,12 @@
 import { BrowserRouter, Route, Routes } from "react-router-dom";
-import HomeScreen from "./screens/HomeScreen";
-import WebViewScreen from "./screens/WebViewScreen";
+import AppShell from "./components/AppShell";
 import NotFoundScreen from "./screens/NotFoundScreen";
 
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<HomeScreen />} />
-        <Route path="/v" element={<WebViewScreen />} />
+        <Route path="/" element={<AppShell />} />
         <Route path="*" element={<NotFoundScreen />} />
       </Routes>
     </BrowserRouter>
