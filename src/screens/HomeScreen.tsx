@@ -1,10 +1,13 @@
-import { useNavigate } from "react-router-dom";
 import { useEffect } from "react";
 import { SplashScreen } from "@capacitor/splash-screen";
 import { Capacitor } from "@capacitor/core";
 import logo from "@/assets/logo.png";
 
 const BASE_URL = "https://tech.hanging360.com";
+
+interface HomeScreenProps {
+  onSelectRole: (url: string) => void;
+}
 
 const roles = [
   {
@@ -52,8 +55,7 @@ const roles = [
   },
 ] as const;
 
-export default function HomeScreen() {
-  const navigate = useNavigate();
+export default function HomeScreen({ onSelectRole }: HomeScreenProps) {
   const isNative = Capacitor.isNativePlatform();
 
   useEffect(() => {
@@ -61,11 +63,10 @@ export default function HomeScreen() {
     SplashScreen.hide().catch(() => {});
   }, [isNative]);
 
-
   const handleRole = (path: string) => {
     const url = BASE_URL + path;
     if (isNative) {
-      navigate("/v", { state: { url } });
+      onSelectRole(url);
       return;
     }
     window.location.assign(url);
@@ -74,9 +75,7 @@ export default function HomeScreen() {
   return (
     <main className="home-screen">
       <div className="home-card">
-        {/* Clavo en la pared */}
         <div className="wall-nail" />
-        {/* Soga que conecta clavo al logo */}
         <svg className="hanging-rope" width="40" height="110" viewBox="0 0 40 110" fill="none">
           <path d="M20 0 Q17 50 10 108" stroke="#8B7355" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
         </svg>
@@ -100,7 +99,6 @@ export default function HomeScreen() {
           ))}
         </div>
 
-        {/* Herramientas tiradas */}
         <div className="scattered-tools">
           <svg className="tool tool-hammer" width="48" height="48" viewBox="0 0 48 48" fill="none">
             <rect x="20" y="18" width="6" height="26" rx="2" fill="#8B7355" />
