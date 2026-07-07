@@ -1,8 +1,8 @@
 import { useEffect } from "react";
 import { SplashScreen, isNativePlatform } from "@/lib/capacitorPlugins";
-import logo from "@/assets/logo.png";
 
 const BASE_URL = "https://tech.hanging360.com";
+const LOGO_URL = "/app-icon-512.png";
 
 interface HomeScreenProps {
   onSelectRole: (url: string) => void;
@@ -81,7 +81,7 @@ export default function HomeScreen({ onSelectRole }: HomeScreenProps) {
 
         <div className="hanging-frame">
           <a href="https://wa.me/17863400825" target="_blank" rel="noopener noreferrer">
-            <img src={logo} alt="Hanging 360" className="home-logo" style={{ cursor: "pointer" }} />
+            <img src={LOGO_URL} alt="Hanging 360" className="home-logo" style={{ cursor: "pointer" }} />
           </a>
         </div>
 
