@@ -1,0 +1,71 @@
+workflows:
+  capacitor_ios_release:
+    name: Capacitor iOS Release
+    max_build_duration: 120
+
+    environment:
+      xcode: latest
+      cocoapods: default
+      vars:
+        XCODE_WORKSPACE: "ios/App/App.xcworkspace"
+        XCODE_SCHEME: "App"
+        BUNDLE_ID: "com.hanging360.app" # <-- cámbialo
+        APP_STORE_APPLE_ID: "1234567890" # <-- opcional para publishing
+
+    cache:
+      cache_paths:
+        - ~/.npm
+        - ~/Library/Caches/CocoaPods
+        - ~/.cocoapods/repos
+        - ios/App/Pods
+
+    scripts:
+      - name: Validate toolchain
+        script: |
+          node -v
+          npm -v
+          xcodebuild -version
+          pod --version
+
+      - name: Install JS dependencies
+        script: |
+          npm ci
+
+      - name: Build web app
+        script: |
+          npm run build
+
+      - name: Sync Capacitor iOS
+        script: |
+          npx cap sync ios
+
+      - name: Install CocoaPods dependencies
+        script: |
+          cd ios/App
+          pod install
+          cd ../..
+
+      - name: Set iOS build number
+        script: |
+          cd ios/App
+          agvtool new-version -all $BUILD_NUMBER || true
+          cd ../..
+
+      - name: Build IPA (unsigned by default)
+        script: |
+          xcode-project build-ipa \
+            --workspace "$XCODE_WORKSPACE" \
+            --scheme "$XCODE_SCHEME"
+
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+      - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.app
+
+    publishing:
+      email:
+        recipients:
+          - tu-correo@ejemplo.com
+        notify:
+          success: true
+          failure: true
