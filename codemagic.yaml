@@ -29,7 +29,13 @@ workflows:
 
       - name: Install JS dependencies
         script: |
-          npm ci
+          pwd
+          ls -la
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
 
       - name: Build web app
         script: |
