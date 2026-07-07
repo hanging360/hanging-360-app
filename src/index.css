@@ -253,8 +253,8 @@ html, body, #root {
   max-height: 100dvh;
   background: #ffffff;
   overflow: hidden;
-  overscroll-behavior: none;
-  touch-action: pan-x pan-y;
+  overscroll-behavior: auto;
+  touch-action: auto;
 }
 
 
@@ -266,7 +266,6 @@ html, body, #root {
   max-height: 100%;
   border: none;
   background: #ffffff;
-  overflow: auto;
   -webkit-overflow-scrolling: touch;
 }
 
