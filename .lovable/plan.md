@@ -1,34 +1,15 @@
-# Cambiar el icono de la app (Capacitor + Home Screen/PWA)
+## Plan
 
-Vamos a reemplazar todos los iconos de la app con el nuevo logo que subiste (`Hanging360_App_Icon_512.png`).
+1. Replace the Vite React plugin that depends on SWC native bindings:
+   - Change `@vitejs/plugin-react-swc` to `@vitejs/plugin-react` in `package.json`.
+   - Update `vite.config.ts` to import `@vitejs/plugin-react` instead of the SWC plugin.
 
-## Qué se va a hacer
+2. Refresh the dependency lockfile/install state:
+   - Run `bun install` so `bun.lock` reflects the plugin change and removes the SWC-native dependency path.
 
-1. **Guardar el nuevo icono maestro** en el proyecto como `src/assets/app-icon.png` (fuente de verdad).
+3. Verify the publishing build path:
+   - Run the project build script (`bun run build`) to confirm Vite can load config and complete without `@swc/core` native binding errors.
 
-2. **PWA / Home Screen (web instalable)**
-   - Regenerar `public/app-icon-192.png` (192x192).
-   - Regenerar `public/app-icon-512.png` (512x512).
-   - Reemplazar `public/favicon.ico` (y añadir `favicon.png`) con el nuevo logo.
-   - Verificar que `public/manifest.json` sigue apuntando a esos iconos (ya lo hace).
-   - Actualizar el `<link rel="icon">` en `index.html` si hace falta.
+## Why this fixes it
 
-3. **iOS (Capacitor)**
-   - Reemplazar `ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png` (1024x1024) con el nuevo logo.
-
-4. **Android (Capacitor)**
-   - Regenerar los `ic_launcher.png` y `ic_launcher_round.png` en:
-     `mipmap-mdpi`, `mipmap-hdpi`, `mipmap-xhdpi`, `mipmap-xxhdpi`, `mipmap-xxxhdpi`.
-   - Regenerar `ic_launcher_foreground.png` (adaptive icon foreground) en las 5 densidades.
-   - Cambiar `ic_launcher_background` a blanco (ya está `#FFFFFF`) o al color del logo — se mantiene blanco para que respire el círculo del logo.
-   - Los `.xml` adaptive-icon actuales seguirán funcionando (apuntan a `@mipmap/ic_launcher_foreground` y `@color/ic_launcher_background`).
-
-## Detalles técnicos
-
-- Se usará `sharp` (o ImageMagick vía `nix`) en el sandbox para generar todas las variantes de tamaño desde el PNG maestro 512x512. Como el original es 512, para el ícono iOS de 1024 se hará upscale simple (el arte es plano/vectorial, se ve bien).
-- Densidades Android mipmap: mdpi=48, hdpi=72, xhdpi=96, xxhdpi=144, xxxhdpi=192. Foreground adaptive: mdpi=108, hdpi=162, xhdpi=216, xxhdpi=324, xxxhdpi=432.
-- Después del cambio, el usuario deberá hacer `git pull` → `npm install` → `npx cap sync` para que los iconos nativos se apliquen en la próxima build de iOS/Android.
-
-## Nota
-
-El splash screen (`ios/.../Splash.imageset`, Android splash) **no** se toca en este plan. Si también lo quieres cambiar, dímelo y lo agrego.
+The publish build fails before compiling the app because `vite.config.ts` imports `@vitejs/plugin-react-swc`, which loads `@swc/core`. That package requires a platform-specific native binary, and the publish environment is failing to load it. Switching to the standard Vite React plugin avoids SWC native bindings while keeping React/Vite behavior intact.
