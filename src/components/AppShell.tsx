@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { SplashScreen, StatusBar, isNativePlatform } from "@/lib/capacitorPlugins";
-import { initPushNotifications } from "@/services/pushNotifications";
+import { SplashScreen, StatusBar, isNativePlatform } from "../lib/capacitorPlugins";
+import { initPushNotifications } from "../services/pushNotifications";
 
 const CLIENT_URL = "https://tech.hanging360.com/my-appointment";
 

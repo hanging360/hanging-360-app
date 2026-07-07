@@ -1,4 +1,4 @@
-import { PushNotifications, isNativePlatform } from "@/lib/capacitorPlugins";
+import { PushNotifications, isNativePlatform } from "../lib/capacitorPlugins";
 
 export async function initPushNotifications() {
   if (!isNativePlatform()) return;

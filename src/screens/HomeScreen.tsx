@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { SplashScreen, isNativePlatform } from "@/lib/capacitorPlugins";
+import { SplashScreen, isNativePlatform } from "../lib/capacitorPlugins";
 
 const BASE_URL = "https://tech.hanging360.com";
 const LOGO_URL = "/app-icon-512.png";
