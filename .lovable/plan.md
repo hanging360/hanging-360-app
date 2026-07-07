@@ -1,29 +1,38 @@
-## Plan: Eliminar pantalla negra al abrir la app
+## Plan: Corregir zoom/scroll en Android dentro del WebView
 
-**Problema**: Al abrir la app nativa, se ve una pantalla negra durante varios segundos antes de que cargue `tech.hanging360.com/my-appointment`. Esto ocurre porque:
+**Problema**: En Android, el iframe carga la página con zoom muy amplio y no permite hacer scroll para llegar al footer (Terms of Service, Privacy Policy, TECH).
 
-1. El SplashScreen de Capacitor está configurado con `launchAutoHide: false`, pero nadie lo oculta manualmente ahora (el código que llamaba `SplashScreen.hide()` estaba en `HomeScreen.tsx`, que ya no se usa).
-2. Mientras el iframe carga la URL remota, el fondo del WebView y del contenedor es transparente/negro, sin indicador visual.
+**Causa raíz**:
+1. El `<meta viewport>` en `index.html` no tiene `viewport-fit=cover` ni control de escalado adecuado para WebView Android.
+2. El iframe usa `flex: 1` sin `height: 100%` explícito, y en Android WebView eso a veces se calcula mal con `100dvh`, dejando el iframe más alto que la pantalla y cortando el scroll.
+3. Falta `-webkit-overflow-scrolling: touch` y `overflow: auto` en el contenedor.
+4. El WebView Android por defecto tiene `useWideViewPort=true` + `loadWithOverviewMode=true` que hace zoom-out en páginas que declaran ancho fijo.
 
-### Cambios
+**Cambios**:
 
-**`capacitor.config.ts`**:
-- Cambiar `SplashScreen.launchAutoHide` a `true` para que iOS/Android oculten el splash nativo automáticamente al terminar de arrancar la WebView.
-- Añadir `backgroundColor: "#ffffff"` (ya existe) y agregar `ios: { backgroundColor: "#ffffff" }` y `android: { backgroundColor: "#ffffff" }` en la raíz para que el WebView no muestre negro.
-- Aumentar `SplashScreen.launchShowDuration` a ~2000ms para cubrir el arranque inicial mientras el iframe carga.
+1. **`index.html`**: Ajustar meta viewport:
+   ```html
+   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+   ```
 
-**`src/components/AppShell.tsx`**:
-- Volver a importar `@capacitor/splash-screen` y llamar `SplashScreen.hide()` cuando el iframe dispare `onLoad` (así el splash permanece visible hasta que la página real está lista, evitando la pantalla negra intermedia).
-- Añadir un fondo blanco al contenedor `.webview-screen` y un overlay de loading (spinner o logo) mostrado hasta que `onLoad` se dispare por primera vez, para que si el splash se oculta antes también haya feedback visual en vez de negro.
-- Estado `isLoaded` que se pone a `true` en el primer `onLoad`; mientras sea `false`, mostrar overlay con logo/spinner sobre fondo blanco.
+2. **`src/index.css`**:
+   - `html, body, #root`: usar `height: 100vh` + `overflow: hidden` (el scroll vive dentro del iframe/página remota).
+   - `.webview-screen`: `height: 100vh` (no `100dvh`, más consistente en Android WebView) + `width: 100vw` + `overflow: hidden`.
+   - `.webview-iframe`: `width: 100%`, `height: 100%`, `display: block`, quitar `flex: 1` para forzar tamaño explícito.
 
-**`src/index.css`**:
-- Asegurar que `html`, `body`, `#root` y `.webview-screen` tengan `background: #ffffff` (o el color del branding) para eliminar cualquier flash negro.
+3. **`capacitor.config.ts`**: Añadir configuración Android para que el WebView no aplique overview mode:
+   ```ts
+   android: {
+     allowMixedContent: true,
+     webContentsDebuggingEnabled: false,
+   }
+   ```
+   Y a nivel raíz:
+   ```ts
+   android: { useLegacyBridge: false }
+   ```
+   (el problema principal es CSS; esto es refuerzo).
 
-### Resultado
+**Resultado esperado**: En Android, la página remota se renderiza a ancho real del dispositivo (sin zoom-out), el iframe ocupa exactamente el viewport, y el scroll interno de la página remota funciona correctamente permitiendo llegar al footer.
 
-Al abrir la app: splash nativo visible → transición directa a fondo blanco con logo/spinner → iframe carga y aparece la página. Sin pantalla negra intermedia.
-
-### Nota
-
-Requiere `npx cap sync` y rebuild en Xcode/Android Studio para aplicar los cambios de `capacitor.config.ts`.
+**Post-cambio**: `npx cap sync android` y reconstruir el APK en Android Studio.
