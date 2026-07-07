@@ -1,4 +1,5 @@
 import { defineConfig } from "vite";
+import path from "node:path";
 
 const preserveRollupErrorContext = () => ({
   name: "preserve-rollup-error-context",
@@ -27,6 +28,11 @@ const preserveRollupErrorContext = () => ({
 
 export default defineConfig({
   plugins: [preserveRollupErrorContext()],
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname, "./src"),
+    },
+  },
   build: {
     sourcemap: false,
   },
