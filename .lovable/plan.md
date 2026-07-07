@@ -1,15 +1,22 @@
 ## Plan
 
-1. Replace the Vite React plugin that depends on SWC native bindings:
-   - Change `@vitejs/plugin-react-swc` to `@vitejs/plugin-react` in `package.json`.
-   - Update `vite.config.ts` to import `@vitejs/plugin-react` instead of the SWC plugin.
+1. **Capture the complete build failure**
+   - Re-run the same publish build command locally with full stderr/stdout saved so the missing part after `file:///dev-server/...` is visible.
+   - Check whether the failing command is `build`, `build:dev`, or both.
 
-2. Refresh the dependency lockfile/install state:
-   - Run `bun install` so `bun.lock` reflects the plugin change and removes the SWC-native dependency path.
+2. **Inspect the likely build inputs**
+   - Review `package.json`, `vite.config.ts`, and the source file/import path named in the full Rollup error.
+   - Confirm the previous SWC-to-Babel React plugin change is reflected consistently in dependencies and config.
 
-3. Verify the publishing build path:
-   - Run the project build script (`bun run build`) to confirm Vite can load config and complete without `@swc/core` native binding errors.
+3. **Fix the root cause, not the symptom**
+   - If Rollup reports an unresolved import, correct the import path, alias, missing file, or missing dependency.
+   - If Vite config is the issue, adjust the plugin/config to avoid the failing resolution path.
+   - If the lockfile/dependency graph is stale, refresh dependencies only as needed.
 
-## Why this fixes it
+4. **Verify the publish build**
+   - Run the exact failing build command again.
+   - Confirm the build exits successfully before reporting the fix.
 
-The publish build fails before compiling the app because `vite.config.ts` imports `@vitejs/plugin-react-swc`, which loads `@swc/core`. That package requires a platform-specific native binary, and the publish environment is failing to load it. Switching to the standard Vite React plugin avoids SWC native bindings while keeping React/Vite behavior intact.
+5. **If the error is still environment-only**
+   - Capture and compare the local build output with the publish error.
+   - Provide the precise remaining blocker and next recovery path, including History rollback if needed.
