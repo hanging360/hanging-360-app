@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Capacitor } from "@capacitor/core";
-import { SplashScreen } from "@capacitor/splash-screen";
-import { StatusBar } from "@capacitor/status-bar";
+import { SplashScreen, StatusBar } from "@/lib/capacitorPlugins";
 import { initPushNotifications } from "@/services/pushNotifications";
 
 const CLIENT_URL = "https://tech.hanging360.com/my-appointment";

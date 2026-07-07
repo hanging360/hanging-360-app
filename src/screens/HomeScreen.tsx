@@ -1,6 +1,6 @@
 import { useEffect } from "react";
-import { SplashScreen } from "@capacitor/splash-screen";
 import { Capacitor } from "@capacitor/core";
+import { SplashScreen } from "@/lib/capacitorPlugins";
 import logo from "@/assets/logo.png";
 
 const BASE_URL = "https://tech.hanging360.com";
