@@ -1,38 +1,43 @@
-## Plan: Corregir zoom/scroll en Android dentro del WebView
+## Plan: Modo inmersivo Android + scroll completo hasta el footer
 
-**Problema**: En Android, el iframe carga la página con zoom muy amplio y no permite hacer scroll para llegar al footer (Terms of Service, Privacy Policy, TECH).
+**Problemas reportados**:
+1. Al abrir la app en Android, la barra de navegación nativa (botones back/home/recent) sigue visible y roba espacio de pantalla.
+2. Dentro del WebView, no se puede hacer scroll hasta el final de la página remota — el footer (Terms, Privacy, TECH) queda inalcanzable.
 
-**Causa raíz**:
-1. El `<meta viewport>` en `index.html` no tiene `viewport-fit=cover` ni control de escalado adecuado para WebView Android.
-2. El iframe usa `flex: 1` sin `height: 100%` explícito, y en Android WebView eso a veces se calcula mal con `100dvh`, dejando el iframe más alto que la pantalla y cortando el scroll.
-3. Falta `-webkit-overflow-scrolling: touch` y `overflow: auto` en el contenedor.
-4. El WebView Android por defecto tiene `useWideViewPort=true` + `loadWithOverviewMode=true` que hace zoom-out en páginas que declaran ancho fijo.
+**Causa**:
+- No hay plugin/config que active el modo *edge-to-edge* / *immersive* en Android, así que la system nav bar sigue empujando el layout.
+- El contenedor `.webview-screen` está fijado a `var(--app-height)` con `overflow: hidden`, y el iframe hereda ese alto. Cuando la barra de navegación de Android se resta del `visualViewport`, el iframe queda más corto que su contenido pero sin permitir scroll interno del iframe (el scroll debe ocurrir *dentro* del documento remoto, no en el iframe). El `touch-action` y el `overscroll-behavior: none` del contenedor están bloqueando parte del gesto de scroll vertical hacia el footer.
 
 **Cambios**:
 
-1. **`index.html`**: Ajustar meta viewport:
-   ```html
-   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-   ```
-
-2. **`src/index.css`**:
-   - `html, body, #root`: usar `height: 100vh` + `overflow: hidden` (el scroll vive dentro del iframe/página remota).
-   - `.webview-screen`: `height: 100vh` (no `100dvh`, más consistente en Android WebView) + `width: 100vw` + `overflow: hidden`.
-   - `.webview-iframe`: `width: 100%`, `height: 100%`, `display: block`, quitar `flex: 1` para forzar tamaño explícito.
-
-3. **`capacitor.config.ts`**: Añadir configuración Android para que el WebView no aplique overview mode:
+1. **Modo inmersivo Android (ocultar nav bar nativa)**  
+   Instalar `@capacitor/status-bar` y usar `StatusBar.hide()` + `setOverlaysWebView({ overlay: true })` al inicializar. Para ocultar también la *navigation bar* inferior, agregar el plugin comunitario `@capacitor-community/immersive-mode` (o usar `EdgeToEdge` de Capacitor 7). Alternativa sin plugin: añadir en `capacitor.config.ts`:
    ```ts
    android: {
      allowMixedContent: true,
-     webContentsDebuggingEnabled: false,
+     backgroundColor: "#ffffff",
    }
    ```
-   Y a nivel raíz:
-   ```ts
-   android: { useLegacyBridge: false }
-   ```
-   (el problema principal es CSS; esto es refuerzo).
+   y crear un pequeño estilo Android en `android/app/src/main/res/values/styles.xml` con `windowTranslucentNavigation` + flag `SYSTEM_UI_FLAG_IMMERSIVE_STICKY` (se documenta como paso manual post-`cap sync`).  
+   Recomendado: usar el plugin `@capacitor-community/immersive-mode` desde JS, así queda todo controlado desde `AppShell.tsx`.
 
-**Resultado esperado**: En Android, la página remota se renderiza a ancho real del dispositivo (sin zoom-out), el iframe ocupa exactamente el viewport, y el scroll interno de la página remota funciona correctamente permitiendo llegar al footer.
+2. **Scroll completo hasta el footer en el iframe**  
+   En `src/index.css`:
+   - `.webview-screen`: quitar `touch-action: pan-x pan-y` (dejar `touch-action: auto`) y quitar `overscroll-behavior: none` para no cortar el gesto.
+   - `.webview-iframe`: quitar `overflow: auto` (un iframe no scrollea así en Android; el scroll ocurre dentro del documento remoto). Dejar solo `width: 100%; height: 100%; display: block; border: 0`.
+   - Ajustar `--app-height` para que use `window.innerHeight` (que ya excluye la nav bar) en lugar de `visualViewport.height` (que cambia al aparecer el teclado y puede dejar el iframe corto).
 
-**Post-cambio**: `npx cap sync android` y reconstruir el APK en Android Studio.
+3. **Ajuste en `AppShell.tsx`**  
+   - Añadir en el `useEffect` nativo: `StatusBar.hide()` y llamada al plugin de immersive mode.  
+   - Simplificar `syncViewportSize` para usar `window.innerHeight` como base y sólo usar `visualViewport` como fallback.  
+   - Añadir `scrolling="yes"` ya está; asegurar que el iframe no tenga `overflow: auto` (ver punto 2).
+
+**Resultado esperado**:  
+La barra de navegación nativa de Android se oculta (modo inmersivo sticky), el WebView ocupa toda la pantalla, y el usuario puede hacer scroll dentro de la página remota hasta ver y pulsar los botones del footer.
+
+**Post-cambio**:  
+`npm i @capacitor/status-bar @capacitor-community/immersive-mode` → `npx cap sync android` → rebuild APK en Android Studio.
+
+### ¿Confirmas?
+- ¿Ocultar **también** la barra de navegación inferior (immersive sticky) o sólo la status bar superior?
+- ¿OK con añadir el plugin `@capacitor-community/immersive-mode`?
