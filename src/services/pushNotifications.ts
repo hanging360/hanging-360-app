@@ -15,7 +15,8 @@ export async function initPushNotifications() {
 
   // Listen for registration success
   PushNotifications.addListener("registration", (token) => {
-    console.log("Push registration token:", token.value);
+    const value = typeof token === "object" && token && "value" in token ? token.value : undefined;
+    console.log("Push registration token:", value);
     // TODO: Send token.value to your backend (e.g. POST to /push/register)
   });
 
