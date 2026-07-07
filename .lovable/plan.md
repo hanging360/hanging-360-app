@@ -1,61 +1,39 @@
-## Qué hacer ahora
+## Problemas
 
-El error que ves viene de un build asíncrono viejo de Lovable que sigue intentando compilar una instantánea anterior. En la versión actual, los builds locales ya pasan, pero el publicador parece estar usando estado desfasado. La salida práctica es restaurar/sincronizar desde una versión limpia y volver a publicar desde cero.
+1. **Las notificaciones push no suenan** en el APK instalado.
+2. **La barra de navegación nativa de Android sigue visible** y tapa el diálogo de chat y otros botones. El `StatusBar.hide()` de JS solo oculta la barra de estado, no la de navegación, y Android la vuelve a mostrar en cuanto el usuario toca la pantalla.
 
-## Pasos en Lovable
+Ambos requieren cambios en el proyecto nativo `android/`, no solo en el JS.
 
-1. Abre **History** y restaura la última versión anterior a los intentos repetidos de arreglo.
-2. Después de restaurar, no publiques todavía.
-3. Vuelve a ejecutar el build/publicación una sola vez.
-4. Si vuelve a fallar con el mismo stack truncado de Rollup, el problema ya no es el código actual sino la cola/cache del build de Lovable; toca publicar después de restaurar o contactar soporte con el ID del proyecto.
+## Cambios propuestos
 
-## Si estás usando GitHub Sync
+### 1. Modo inmersivo real (oculta status bar + navigation bar de forma persistente)
 
-1. En GitHub, revisa que el repo tenga estos archivos limpios:
-   - `package.json`
-   - `bun.lock`
-   - `vite.config.ts`
-   - `tsconfig.json`
-   - `src/**`
-   - `public/**`
+- **`MainActivity.java`**: sobreescribir `onCreate` y `onWindowFocusChanged` para aplicar *immersive sticky* con `WindowInsetsControllerCompat` (API 30+) y fallback a `SYSTEM_UI_FLAG_IMMERSIVE_STICKY` (API < 30). Esto reoculta las barras cada vez que el usuario hace swipe.
+- **`styles.xml`**: en `AppTheme.NoActionBar` añadir `windowFullscreen=true`, `windowTranslucentNavigation=true` y `windowLayoutInDisplayCutoutMode=shortEdges` para que el WebView ocupe toda la pantalla incluyendo notch.
+- **`AndroidManifest.xml`**: cambiar el tema de la actividad de `AppTheme.NoActionBarLaunch` (solo splash) a `AppTheme.NoActionBar` una vez arrancada, y añadir `android:windowSoftInputMode="adjustResize"` para que el teclado no tape el input del chat.
+- **`AppShell.tsx`**: mantener las llamadas a `StatusBar.hide()` como refuerzo, pero el trabajo real lo hace el código nativo.
 
-2. Asegúrate de que NO estén versionados estos artefactos generados:
-   - `dist/`
-   - `node_modules/`
-   - `tsconfig.tsbuildinfo`
-   - cambios manuales dentro de `node_modules/`
+### 2. Sonido en notificaciones push
 
-3. Si existen en GitHub, elimínalos desde GitHub o desde tu IDE y deja que Lovable sincronice.
+- **`AndroidManifest.xml`**:
+  - Añadir permisos: `POST_NOTIFICATIONS`, `VIBRATE`, `WAKE_LOCK`, `RECEIVE_BOOT_COMPLETED`.
+  - Añadir meta-data `com.google.firebase.messaging.default_notification_channel_id` apuntando a un canal `hanging360_default`.
+- **Crear canal de notificación con sonido** en `MainActivity.java` (en `onCreate`), con `IMPORTANCE_HIGH`, sonido por defecto del sistema (`RingtoneManager.TYPE_NOTIFICATION`) y vibración. Sin canal, Android 8+ ignora el sonido.
+- **`pushNotifications.ts`**: al recibir el token, registrar también el canal via `PushNotifications.createChannel(...)` como respaldo desde JS.
 
-4. Verifica que GitHub Sync esté conectado correctamente:
-   - Lovable editor → Plus (+) → GitHub → Connect project
-   - Autoriza la GitHub App de Lovable
-   - Asegúrate de que el repo tenga permisos de lectura/escritura para la app de Lovable
+> Nota: para que las push realmente lleguen sigue haciendo falta `google-services.json` de Firebase en `android/app/`. Si aún no lo tienes, el sonido tampoco sonará porque no llega la notificación. Confírmame si ya está subido.
 
-## Permisos necesarios en GitHub
+## Detalles técnicos
 
-No hay un “file lovable” especial que arreglar. Lo que Lovable necesita es que la **Lovable GitHub App** tenga acceso al repositorio:
+- Archivos a editar:
+  - `android/app/src/main/java/com/hanging360/tech/MainActivity.java`
+  - `android/app/src/main/res/values/styles.xml`
+  - `android/app/src/main/AndroidManifest.xml`
+  - `src/services/pushNotifications.ts`
+- Sin cambios en `capacitor.config.ts` ni en `package.json`.
+- Tras aplicar, el usuario debe hacer `git pull`, `npm install`, `npx cap sync android` y reconstruir el APK — los cambios nativos no se propagan por hot-reload.
 
-- Read access al contenido del repo
-- Write access al contenido del repo
-- Permiso para sincronizar commits hacia/desde el branch conectado
+## Pregunta antes de implementar
 
-En GitHub:
-
-1. Ve a **GitHub → Settings → Applications → Installed GitHub Apps**.
-2. Abre **Lovable**.
-3. Revisa **Repository access**.
-4. Dale acceso al repositorio de este proyecto.
-5. Guarda los cambios.
-
-## Qué haría al implementar después de que apruebes
-
-1. Revisar el estado actual del repo sin seguir parcheando a ciegas.
-2. Confirmar que no quedan artefactos generados ni cambios dentro de `node_modules`.
-3. Dejar `vite.config.ts` compatible con imports relativos y alias `@` para snapshots viejos.
-4. Confirmar que `package.json` y `bun.lock` están alineados.
-5. Ejecutar build limpio y dejar el proyecto listo para publicar.
-
-## Resultado esperado
-
-Lovable/GitHub quedarán sincronizados con una fuente limpia, sin `dist`, sin `node_modules` versionado y con configuración de Vite compatible para que Rollup no falle al resolver módulos en builds viejos o nuevos.
+¿Tienes ya `google-services.json` colocado en `android/app/`? Si no, el sonido no es el bloqueante real: primero hay que configurar Firebase Cloud Messaging o las push no llegan.
