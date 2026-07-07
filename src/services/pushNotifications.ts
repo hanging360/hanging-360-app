@@ -1,8 +1,7 @@
-import { Capacitor } from "@capacitor/core";
-import { PushNotifications } from "@/lib/capacitorPlugins";
+import { PushNotifications, isNativePlatform } from "@/lib/capacitorPlugins";
 
 export async function initPushNotifications() {
-  if (!Capacitor.isNativePlatform()) return;
+  if (!isNativePlatform()) return;
 
   // Request permission
   const permResult = await PushNotifications.requestPermissions();

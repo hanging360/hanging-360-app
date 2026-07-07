@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { Capacitor } from "@capacitor/core";
-import { SplashScreen, StatusBar } from "@/lib/capacitorPlugins";
+import { SplashScreen, StatusBar, isNativePlatform } from "@/lib/capacitorPlugins";
 import { initPushNotifications } from "@/services/pushNotifications";
 
 const CLIENT_URL = "https://tech.hanging360.com/my-appointment";
@@ -11,7 +10,7 @@ export default function AppShell() {
   const [isLoaded, setIsLoaded] = useState(false);
   const retryCount = useRef(0);
   const MAX_RETRIES = 3;
-  const isNative = Capacitor.isNativePlatform();
+  const isNative = isNativePlatform();
 
   useEffect(() => {
     if (isNative) {

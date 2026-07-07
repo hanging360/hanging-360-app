@@ -1,6 +1,5 @@
 import { useEffect } from "react";
-import { Capacitor } from "@capacitor/core";
-import { SplashScreen } from "@/lib/capacitorPlugins";
+import { SplashScreen, isNativePlatform } from "@/lib/capacitorPlugins";
 import logo from "@/assets/logo.png";
 
 const BASE_URL = "https://tech.hanging360.com";
@@ -56,7 +55,7 @@ const roles = [
 ] as const;
 
 export default function HomeScreen({ onSelectRole }: HomeScreenProps) {
-  const isNative = Capacitor.isNativePlatform();
+  const isNative = isNativePlatform();
 
   useEffect(() => {
     if (!isNative) return;
