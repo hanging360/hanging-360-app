@@ -7,7 +7,7 @@ workflows:
       xcode: latest
       cocoapods: default
       vars:
-        XCODE_WORKSPACE: "ios/App/App.xcworkspace"
+        XCODE_WORKSPACE: "ios/App.xcworkspace"
         XCODE_SCHEME: "App"
         BUNDLE_ID: "com.hanging360.app" # <-- cámbialo
         APP_STORE_APPLE_ID: "1234567890" # <-- opcional para publishing
@@ -17,7 +17,7 @@ workflows:
         - ~/.npm
         - ~/Library/Caches/CocoaPods
         - ~/.cocoapods/repos
-        - ios/App/Pods
+        - ios/Pods
 
     scripts:
       - name: Validate toolchain
@@ -43,15 +43,15 @@ workflows:
 
       - name: Install CocoaPods dependencies
         script: |
-          cd ios/App
+          cd ios
           pod install
-          cd ../..
+          cd ..
 
       - name: Set iOS build number
         script: |
-          cd ios/App
+          cd ios
           agvtool new-version -all $BUILD_NUMBER || true
-          cd ../..
+          cd ..
 
       - name: Build IPA (unsigned by default)
         script: |
