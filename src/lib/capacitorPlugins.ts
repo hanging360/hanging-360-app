@@ -21,7 +21,7 @@ const listenerHandle: PluginListenerHandle = {
   remove: async () => {},
 };
 
-const resolvePlugin = <T extends Record<string, unknown>>(name: string, fallback: T): T => {
+const resolvePlugin = <T extends object>(name: string, fallback: T): T => {
   const plugin = getBridge()?.Plugins?.[name];
   return (plugin ?? fallback) as T;
 };
@@ -40,22 +40,10 @@ type PermissionState = "prompt" | "prompt-with-rationale" | "granted" | "denied"
 interface PushNotificationsPlugin {
   requestPermissions: () => Promise<{ receive: PermissionState }>;
   register: () => Promise<void>;
-  addListener(
-    eventName: "registration",
-    listenerFunc: (token: { value: string }) => void,
-  ): Promise<PluginListenerHandle>;
-  addListener(
-    eventName: "registrationError",
-    listenerFunc: (error: unknown) => void,
-  ): Promise<PluginListenerHandle>;
-  addListener(
-    eventName: "pushNotificationReceived",
-    listenerFunc: (notification: unknown) => void,
-  ): Promise<PluginListenerHandle>;
-  addListener(
-    eventName: "pushNotificationActionPerformed",
-    listenerFunc: (action: unknown) => void,
-  ): Promise<PluginListenerHandle>;
+  addListener: (
+    eventName: "registration" | "registrationError" | "pushNotificationReceived" | "pushNotificationActionPerformed",
+    listenerFunc: (payload: unknown) => void,
+  ) => Promise<PluginListenerHandle>;
 }
 
 export const SplashScreen: SplashScreenPlugin = {
