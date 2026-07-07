@@ -12,26 +12,26 @@ type StatusBarPlugin = {
 
 type PermissionState = "prompt" | "prompt-with-rationale" | "granted" | "denied";
 
-type PushNotificationsPlugin = {
+interface PushNotificationsPlugin {
   requestPermissions: () => Promise<{ receive: PermissionState }>;
   register: () => Promise<void>;
-  addListener: (
+  addListener(
     eventName: "registration",
     listenerFunc: (token: { value: string }) => void,
-  ) => Promise<PluginListenerHandle>;
-  addListener: (
+  ): Promise<PluginListenerHandle>;
+  addListener(
     eventName: "registrationError",
     listenerFunc: (error: unknown) => void,
-  ) => Promise<PluginListenerHandle>;
-  addListener: (
+  ): Promise<PluginListenerHandle>;
+  addListener(
     eventName: "pushNotificationReceived",
     listenerFunc: (notification: unknown) => void,
-  ) => Promise<PluginListenerHandle>;
-  addListener: (
+  ): Promise<PluginListenerHandle>;
+  addListener(
     eventName: "pushNotificationActionPerformed",
     listenerFunc: (action: unknown) => void,
-  ) => Promise<PluginListenerHandle>;
-};
+  ): Promise<PluginListenerHandle>;
+}
 
 export const SplashScreen = registerPlugin<SplashScreenPlugin>("SplashScreen");
 export const StatusBar = registerPlugin<StatusBarPlugin>("StatusBar");
