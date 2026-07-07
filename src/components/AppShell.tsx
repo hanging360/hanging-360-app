@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Capacitor } from "@capacitor/core";
 import { SplashScreen } from "@capacitor/splash-screen";
+import { StatusBar } from "@capacitor/status-bar";
 import { initPushNotifications } from "@/services/pushNotifications";
 
 const CLIENT_URL = "https://tech.hanging360.com/my-appointment";
@@ -16,6 +17,14 @@ export default function AppShell() {
   useEffect(() => {
     if (isNative) {
       initPushNotifications();
+      // Modo inmersivo: ocultar status bar y overlay
+      StatusBar.hide().catch(() => {});
+      StatusBar.setOverlaysWebView({ overlay: true }).catch(() => {});
+      // Ocultar system navigation bar (Android immersive sticky) vía WebView
+      const anyWin = window as any;
+      if (anyWin.AndroidFullScreen?.immersiveMode) {
+        anyWin.AndroidFullScreen.immersiveMode();
+      }
     } else {
       window.location.assign(CLIENT_URL);
     }
@@ -29,9 +38,8 @@ export default function AppShell() {
     const syncViewportSize = () => {
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
-        const viewport = window.visualViewport;
-        const width = Math.floor(viewport?.width || window.innerWidth);
-        const height = Math.floor(viewport?.height || window.innerHeight);
+        const width = Math.floor(window.innerWidth);
+        const height = Math.floor(window.innerHeight);
 
         document.documentElement.style.setProperty("--app-width", `${width}px`);
         document.documentElement.style.setProperty("--app-height", `${height}px`);
