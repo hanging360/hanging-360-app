@@ -1,43 +1,34 @@
-## Plan: Modo inmersivo Android + scroll completo hasta el footer
+# Cambiar el icono de la app (Capacitor + Home Screen/PWA)
 
-**Problemas reportados**:
-1. Al abrir la app en Android, la barra de navegación nativa (botones back/home/recent) sigue visible y roba espacio de pantalla.
-2. Dentro del WebView, no se puede hacer scroll hasta el final de la página remota — el footer (Terms, Privacy, TECH) queda inalcanzable.
+Vamos a reemplazar todos los iconos de la app con el nuevo logo que subiste (`Hanging360_App_Icon_512.png`).
 
-**Causa**:
-- No hay plugin/config que active el modo *edge-to-edge* / *immersive* en Android, así que la system nav bar sigue empujando el layout.
-- El contenedor `.webview-screen` está fijado a `var(--app-height)` con `overflow: hidden`, y el iframe hereda ese alto. Cuando la barra de navegación de Android se resta del `visualViewport`, el iframe queda más corto que su contenido pero sin permitir scroll interno del iframe (el scroll debe ocurrir *dentro* del documento remoto, no en el iframe). El `touch-action` y el `overscroll-behavior: none` del contenedor están bloqueando parte del gesto de scroll vertical hacia el footer.
+## Qué se va a hacer
 
-**Cambios**:
+1. **Guardar el nuevo icono maestro** en el proyecto como `src/assets/app-icon.png` (fuente de verdad).
 
-1. **Modo inmersivo Android (ocultar nav bar nativa)**  
-   Instalar `@capacitor/status-bar` y usar `StatusBar.hide()` + `setOverlaysWebView({ overlay: true })` al inicializar. Para ocultar también la *navigation bar* inferior, agregar el plugin comunitario `@capacitor-community/immersive-mode` (o usar `EdgeToEdge` de Capacitor 7). Alternativa sin plugin: añadir en `capacitor.config.ts`:
-   ```ts
-   android: {
-     allowMixedContent: true,
-     backgroundColor: "#ffffff",
-   }
-   ```
-   y crear un pequeño estilo Android en `android/app/src/main/res/values/styles.xml` con `windowTranslucentNavigation` + flag `SYSTEM_UI_FLAG_IMMERSIVE_STICKY` (se documenta como paso manual post-`cap sync`).  
-   Recomendado: usar el plugin `@capacitor-community/immersive-mode` desde JS, así queda todo controlado desde `AppShell.tsx`.
+2. **PWA / Home Screen (web instalable)**
+   - Regenerar `public/app-icon-192.png` (192x192).
+   - Regenerar `public/app-icon-512.png` (512x512).
+   - Reemplazar `public/favicon.ico` (y añadir `favicon.png`) con el nuevo logo.
+   - Verificar que `public/manifest.json` sigue apuntando a esos iconos (ya lo hace).
+   - Actualizar el `<link rel="icon">` en `index.html` si hace falta.
 
-2. **Scroll completo hasta el footer en el iframe**  
-   En `src/index.css`:
-   - `.webview-screen`: quitar `touch-action: pan-x pan-y` (dejar `touch-action: auto`) y quitar `overscroll-behavior: none` para no cortar el gesto.
-   - `.webview-iframe`: quitar `overflow: auto` (un iframe no scrollea así en Android; el scroll ocurre dentro del documento remoto). Dejar solo `width: 100%; height: 100%; display: block; border: 0`.
-   - Ajustar `--app-height` para que use `window.innerHeight` (que ya excluye la nav bar) en lugar de `visualViewport.height` (que cambia al aparecer el teclado y puede dejar el iframe corto).
+3. **iOS (Capacitor)**
+   - Reemplazar `ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png` (1024x1024) con el nuevo logo.
 
-3. **Ajuste en `AppShell.tsx`**  
-   - Añadir en el `useEffect` nativo: `StatusBar.hide()` y llamada al plugin de immersive mode.  
-   - Simplificar `syncViewportSize` para usar `window.innerHeight` como base y sólo usar `visualViewport` como fallback.  
-   - Añadir `scrolling="yes"` ya está; asegurar que el iframe no tenga `overflow: auto` (ver punto 2).
+4. **Android (Capacitor)**
+   - Regenerar los `ic_launcher.png` y `ic_launcher_round.png` en:
+     `mipmap-mdpi`, `mipmap-hdpi`, `mipmap-xhdpi`, `mipmap-xxhdpi`, `mipmap-xxxhdpi`.
+   - Regenerar `ic_launcher_foreground.png` (adaptive icon foreground) en las 5 densidades.
+   - Cambiar `ic_launcher_background` a blanco (ya está `#FFFFFF`) o al color del logo — se mantiene blanco para que respire el círculo del logo.
+   - Los `.xml` adaptive-icon actuales seguirán funcionando (apuntan a `@mipmap/ic_launcher_foreground` y `@color/ic_launcher_background`).
 
-**Resultado esperado**:  
-La barra de navegación nativa de Android se oculta (modo inmersivo sticky), el WebView ocupa toda la pantalla, y el usuario puede hacer scroll dentro de la página remota hasta ver y pulsar los botones del footer.
+## Detalles técnicos
 
-**Post-cambio**:  
-`npm i @capacitor/status-bar @capacitor-community/immersive-mode` → `npx cap sync android` → rebuild APK en Android Studio.
+- Se usará `sharp` (o ImageMagick vía `nix`) en el sandbox para generar todas las variantes de tamaño desde el PNG maestro 512x512. Como el original es 512, para el ícono iOS de 1024 se hará upscale simple (el arte es plano/vectorial, se ve bien).
+- Densidades Android mipmap: mdpi=48, hdpi=72, xhdpi=96, xxhdpi=144, xxxhdpi=192. Foreground adaptive: mdpi=108, hdpi=162, xhdpi=216, xxhdpi=324, xxxhdpi=432.
+- Después del cambio, el usuario deberá hacer `git pull` → `npm install` → `npx cap sync` para que los iconos nativos se apliquen en la próxima build de iOS/Android.
 
-### ¿Confirmas?
-- ¿Ocultar **también** la barra de navegación inferior (immersive sticky) o sólo la status bar superior?
-- ¿OK con añadir el plugin `@capacitor-community/immersive-mode`?
+## Nota
+
+El splash screen (`ios/.../Splash.imageset`, Android splash) **no** se toca en este plan. Si también lo quieres cambiar, dímelo y lo agrego.
