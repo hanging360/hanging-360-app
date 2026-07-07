@@ -1,5 +1,5 @@
 import { Capacitor } from "@capacitor/core";
-import { PushNotifications } from "@capacitor/push-notifications";
+import { PushNotifications } from "@/lib/capacitorPlugins";
 
 export async function initPushNotifications() {
   if (!Capacitor.isNativePlatform()) return;
