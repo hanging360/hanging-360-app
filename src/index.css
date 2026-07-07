@@ -9,7 +9,8 @@ html, body, #root {
   margin: 0;
   padding: 0;
   width: 100%;
-  height: 100%;
+  height: 100vh;
+  overflow: hidden;
   font-family: -apple-system, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
   background: #ffffff;
   color: #000000;
@@ -242,17 +243,19 @@ html, body, #root {
 
 /* WebView Screen */
 .webview-screen {
-  display: flex;
-  flex-direction: column;
-  height: 100dvh;
+  display: block;
+  width: 100vw;
+  height: 100vh;
   background: #ffffff;
   position: relative;
+  overflow: hidden;
 }
 
 
 .webview-iframe {
-  flex: 1;
+  display: block;
   width: 100%;
+  height: 100%;
   border: none;
   background: #ffffff;
 }
