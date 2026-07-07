@@ -1,30 +1,61 @@
-## Plan
+## Qué hacer ahora
 
-I’ll treat this as a stale or publish-only Rollup resolution failure, because the visible error is truncated and points at Vite/Rollup `resolveId` rather than a TypeScript/runtime error.
+El error que ves viene de un build asíncrono viejo de Lovable que sigue intentando compilar una instantánea anterior. En la versión actual, los builds locales ya pasan, pero el publicador parece estar usando estado desfasado. La salida práctica es restaurar/sincronizar desde una versión limpia y volver a publicar desde cero.
 
-### Steps
+## Pasos en Lovable
 
-1. **Reproduce the failure locally**
-   - Run the exact build scripts used by publishing: `build` and `build:dev`.
-   - Capture the full stderr output so the missing import/package name is visible, not just the Rollup stack tail.
+1. Abre **History** y restaura la última versión anterior a los intentos repetidos de arreglo.
+2. Después de restaurar, no publiques todavía.
+3. Vuelve a ejecutar el build/publicación una sola vez.
+4. Si vuelve a fallar con el mismo stack truncado de Rollup, el problema ya no es el código actual sino la cola/cache del build de Lovable; toca publicar después de restaurar o contactar soporte con el ID del proyecto.
 
-2. **Check for unresolved import sources**
-   - Scan the app source, Vite config, package files, and native/Capacitor adapter paths for imports that publishing may fail to resolve.
-   - Pay special attention to prior suspects: `@vitejs/plugin-react`, `@capacitor/core`, native Capacitor plugin packages, path aliases, and stale generated output.
+## Si estás usando GitHub Sync
 
-3. **Patch the smallest build-blocking cause**
-   - If the failure is a stale config/package mismatch, align `package.json`, lockfile, and `vite.config.ts`.
-   - If it is a native Capacitor import leaking into the web bundle, keep native access behind the existing browser-safe adapter.
-   - If publishing is reading stale generated artifacts, remove or stop relying on generated `dist`/`www` output in the source tree.
+1. En GitHub, revisa que el repo tenga estos archivos limpios:
+   - `package.json`
+   - `bun.lock`
+   - `vite.config.ts`
+   - `tsconfig.json`
+   - `src/**`
+   - `public/**`
 
-4. **Verify before reporting fixed**
-   - Run both `bun run build` and `bun run build:dev` successfully.
-   - Confirm the source no longer contains web-bundled imports that Rollup cannot resolve.
+2. Asegúrate de que NO estén versionados estos artefactos generados:
+   - `dist/`
+   - `node_modules/`
+   - `tsconfig.tsbuildinfo`
+   - cambios manuales dentro de `node_modules/`
 
-### Expected outcome
+3. Si existen en GitHub, elimínalos desde GitHub o desde tu IDE y deja que Lovable sincronice.
 
-Publishing should no longer fail during Vite/Rollup module resolution, and the build output should progress beyond the current “10 modules transformed” failure point.
+4. Verifica que GitHub Sync esté conectado correctamente:
+   - Lovable editor → Plus (+) → GitHub → Connect project
+   - Autoriza la GitHub App de Lovable
+   - Asegúrate de que el repo tenga permisos de lectura/escritura para la app de Lovable
 
-<presentation-actions><presentation-open-history>View History</presentation-open-history></presentation-actions>
+## Permisos necesarios en GitHub
 
-<presentation-actions><presentation-link url="https://docs.lovable.dev/tips-tricks/troubleshooting">Troubleshooting docs</presentation-link></presentation-actions>
+No hay un “file lovable” especial que arreglar. Lo que Lovable necesita es que la **Lovable GitHub App** tenga acceso al repositorio:
+
+- Read access al contenido del repo
+- Write access al contenido del repo
+- Permiso para sincronizar commits hacia/desde el branch conectado
+
+En GitHub:
+
+1. Ve a **GitHub → Settings → Applications → Installed GitHub Apps**.
+2. Abre **Lovable**.
+3. Revisa **Repository access**.
+4. Dale acceso al repositorio de este proyecto.
+5. Guarda los cambios.
+
+## Qué haría al implementar después de que apruebes
+
+1. Revisar el estado actual del repo sin seguir parcheando a ciegas.
+2. Confirmar que no quedan artefactos generados ni cambios dentro de `node_modules`.
+3. Dejar `vite.config.ts` compatible con imports relativos y alias `@` para snapshots viejos.
+4. Confirmar que `package.json` y `bun.lock` están alineados.
+5. Ejecutar build limpio y dejar el proyecto listo para publicar.
+
+## Resultado esperado
+
+Lovable/GitHub quedarán sincronizados con una fuente limpia, sin `dist`, sin `node_modules` versionado y con configuración de Vite compatible para que Rollup no falle al resolver módulos en builds viejos o nuevos.
