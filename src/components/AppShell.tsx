@@ -21,6 +21,38 @@ export default function AppShell() {
     }
   }, [isNative]);
 
+  useEffect(() => {
+    if (!isNative) return;
+
+    let frame = 0;
+
+    const syncViewportSize = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const viewport = window.visualViewport;
+        const width = Math.floor(viewport?.width || window.innerWidth);
+        const height = Math.floor(viewport?.height || window.innerHeight);
+
+        document.documentElement.style.setProperty("--app-width", `${width}px`);
+        document.documentElement.style.setProperty("--app-height", `${height}px`);
+      });
+    };
+
+    syncViewportSize();
+    window.addEventListener("resize", syncViewportSize);
+    window.addEventListener("orientationchange", syncViewportSize);
+    window.visualViewport?.addEventListener("resize", syncViewportSize);
+    window.visualViewport?.addEventListener("scroll", syncViewportSize);
+
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("resize", syncViewportSize);
+      window.removeEventListener("orientationchange", syncViewportSize);
+      window.visualViewport?.removeEventListener("resize", syncViewportSize);
+      window.visualViewport?.removeEventListener("scroll", syncViewportSize);
+    };
+  }, [isNative]);
+
   const handleIframeError = useCallback(() => {
     if (retryCount.current < MAX_RETRIES) {
       retryCount.current += 1;
@@ -39,7 +71,7 @@ export default function AppShell() {
   if (!isNative) return null;
 
   return (
-    <div className="webview-screen" style={{ display: "flex" }}>
+    <div className="webview-screen">
       <iframe
         key={iframeKey}
         ref={iframeRef}
@@ -47,6 +79,7 @@ export default function AppShell() {
         className="webview-iframe"
         title="Hanging 360"
         allow="camera; microphone; geolocation"
+        scrolling="yes"
         onLoad={handleIframeLoad}
         onError={handleIframeError}
       />
