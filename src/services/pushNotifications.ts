@@ -3,6 +3,24 @@ import { PushNotifications, isNativePlatform } from "../lib/capacitorPlugins";
 export async function initPushNotifications() {
   if (!isNativePlatform()) return;
 
+  // Ensure a high-importance channel with sound exists (Android 8+)
+  try {
+    if (typeof (PushNotifications as any).createChannel === "function") {
+      await (PushNotifications as any).createChannel({
+        id: "hanging360_default",
+        name: "Notificaciones Hanging360",
+        description: "Avisos de citas y mensajes",
+        importance: 5,
+        visibility: 1,
+        sound: "default",
+        vibration: true,
+        lights: true,
+      });
+    }
+  } catch (e) {
+    console.warn("createChannel failed:", e);
+  }
+
   // Request permission
   const permResult = await PushNotifications.requestPermissions();
   if (permResult.receive !== "granted") {
