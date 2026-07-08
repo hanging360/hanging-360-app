@@ -84,7 +84,7 @@ workflows:
     publishing:
       email:
         recipients:
-          - tu-correo@ejemplo.com
+          - cubanito_com@yahoo.com
         notify:
           success: true
           failure: true
