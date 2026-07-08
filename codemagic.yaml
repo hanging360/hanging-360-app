@@ -9,8 +9,7 @@ workflows:
       vars:
         XCODE_PROJECT: "ios/App/App.xcodeproj"
         XCODE_SCHEME: "App"
-        BUNDLE_ID: "com.hanging360.app" # <-- cámbialo
-        APP_STORE_APPLE_ID: "cubanito_com@yahoo.com" # <-- opcional para publishing
+        BUNDLE_ID: "com.hanging360.app"
 
     cache:
       cache_paths:
@@ -29,8 +28,6 @@ workflows:
 
       - name: Install JS dependencies
         script: |
-          pwd
-          ls -la
           npm install --no-audit --no-fund --legacy-peer-deps
 
       - name: Build web app
@@ -53,13 +50,33 @@ workflows:
           agvtool new-version -all $BUILD_NUMBER || true
           cd ../..
 
-      - name: Build IPA (unsigned by default)
+      - name: Build IPA unsigned
         script: |
+          cat > /Users/builder/export_options.plist <<'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>development</string>
+            <key>signingStyle</key>
+            <string>manual</string>
+            <key>compileBitcode</key>
+            <false/>
+            <key>uploadBitcode</key>
+            <false/>
+          </dict>
+          </plist>
+          EOF
+
+          ls -la /Users/builder/export_options.plist
+
           xcode-project build-ipa \
             --project "$XCODE_PROJECT" \
             --scheme "$XCODE_SCHEME" \
-            --archive-xcargs "CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO" \
-            --export-xcargs "CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO"
+            --archive-xcargs "CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=''" \
+            --export-xcargs "CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=''" \
+            --export-options-plist /Users/builder/export_options.plist
 
     artifacts:
       - build/ios/ipa/*.ipa
