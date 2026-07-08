@@ -3,9 +3,6 @@ workflows:
     name: Capacitor iOS Release
     max_build_duration: 120
 
-    integrations:
-      app_store_connect: Hanging360
-
     environment:
       xcode: latest
       cocoapods: default
@@ -70,8 +67,8 @@ workflows:
     artifacts:
       - build/ios/ipa/*.ipa
       - /tmp/xcodebuild_logs/*.log
-      - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.app
       - build/ios/xcarchive/*.xcarchive
+      - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.app
 
     publishing:
       email:
