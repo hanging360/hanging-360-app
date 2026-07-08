@@ -6,13 +6,14 @@ workflows:
     environment:
       xcode: latest
       cocoapods: default
+
       ios_signing:
         distribution_type: app_store
         bundle_identifier: com.hanging360.app
+
       vars:
-        XCODE_PROJECT: "ios/App/App.xcodeproj"
-        XCODE_SCHEME: "App"
-        BUNDLE_ID: "com.hanging360.app"
+        XCODE_PROJECT: ios/App/App.xcodeproj
+        XCODE_SCHEME: App
         APP_VERSION: "0.3"
 
     cache:
@@ -23,6 +24,7 @@ workflows:
         - ios/App/Pods
 
     scripts:
+
       - name: Validate toolchain
         script: |
           node -v
@@ -30,49 +32,47 @@ workflows:
           xcodebuild -version
           pod --version
 
-      - name: Install JS dependencies
+      - name: Install dependencies
         script: |
-          npm install --no-audit --no-fund --legacy-peer-deps
+          npm install --legacy-peer-deps
 
-      - name: Build web app
+      - name: Build web
         script: |
           npm run build
 
-      - name: Sync Capacitor iOS
+      - name: Capacitor Sync
         script: |
           npx cap sync ios
 
-      - name: Install CocoaPods dependencies
+      - name: CocoaPods
         script: |
           cd ios/App
+          pod repo update
           pod install
           cd ../..
 
-      - name: Set iOS app version and build number
+      - name: Version
         script: |
           cd ios/App
           agvtool new-marketing-version "$APP_VERSION" || true
           agvtool new-version -all "$BUILD_NUMBER" || true
           cd ../..
 
-      - name: Set up code signing
+      - name: Configure signing
         script: |
-          xcode-project use-profiles --project "$XCODE_PROJECT"
+          xcode-project use-profiles
 
-      - name: Build signed IPA
+      - name: Build IPA
         script: |
           xcode-project build-ipa \
             --project "$XCODE_PROJECT" \
             --scheme "$XCODE_SCHEME" \
-            --archive-xcargs "CODE_SIGN_STYLE=Manual PROVISIONING_PROFILE_SPECIFIER='Hanging360 App Store 1' PRODUCT_BUNDLE_IDENTIFIER=com.hanging360.app MARKETING_VERSION=0.3 CURRENT_PROJECT_VERSION=$BUILD_NUMBER" \
-            --export-xcargs "PROVISIONING_PROFILE_SPECIFIER='Hanging360 App Store 1'" \
             --verbose
 
     artifacts:
       - build/ios/ipa/*.ipa
-      - /tmp/xcodebuild_logs/*.log
       - build/ios/xcarchive/*.xcarchive
-      - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.app
+      - /tmp/xcodebuild_logs/*.log
 
     publishing:
       email:
