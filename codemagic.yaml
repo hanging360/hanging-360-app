@@ -99,6 +99,11 @@ workflows:
             --export-options-plist /Users/builder/export_options.plist \
             --verbose
 
+      - name: Show code signing settings
+        script: |
+    xcodebuild -project "$XCODE_PROJECT" -scheme "$XCODE_SCHEME" -showBuildSettings | \
+    egrep "PRODUCT_BUNDLE_IDENTIFIER|DEVELOPMENT_TEAM|CODE_SIGN_STYLE|PROVISIONING_PROFILE_SPECIFIER|CODE_SIGN_IDENTITY"
+
       - name: Print xcodebuild logs
         script: |
           find /tmp/xcodebuild_logs -type f -name "*.log" -maxdepth 2 -print || true
