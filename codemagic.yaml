@@ -6,15 +6,15 @@ workflows:
     environment:
       xcode: latest
       cocoapods: default
-
       ios_signing:
         distribution_type: app_store
         bundle_identifier: com.hanging360.app
-
       vars:
-        XCODE_PROJECT: ios/App/App.xcodeproj
-        XCODE_SCHEME: App
+        XCODE_PROJECT: "ios/App/App.xcodeproj"
+        XCODE_SCHEME: "App"
         APP_VERSION: "0.3"
+        BUNDLE_ID: "com.hanging360.app"
+        PROVISIONING_PROFILE_SPECIFIER: "Hanging360"
 
     cache:
       cache_paths:
@@ -24,7 +24,6 @@ workflows:
         - ios/App/Pods
 
     scripts:
-
       - name: Validate toolchain
         script: |
           node -v
@@ -32,47 +31,55 @@ workflows:
           xcodebuild -version
           pod --version
 
-      - name: Install dependencies
+      - name: Install JS dependencies
         script: |
-          npm install --legacy-peer-deps
+          npm install --no-audit --no-fund --legacy-peer-deps
 
-      - name: Build web
+      - name: Build web app
         script: |
           npm run build
 
-      - name: Capacitor Sync
+      - name: Sync Capacitor iOS
         script: |
           npx cap sync ios
 
-      - name: CocoaPods
+      - name: Install CocoaPods dependencies
         script: |
           cd ios/App
-          pod repo update
           pod install
           cd ../..
 
-      - name: Version
+      - name: Force Bundle ID and version
         script: |
+          /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier com.hanging360.app" ios/App/App/Info.plist || true
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString 0.3" ios/App/App/Info.plist || true
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" ios/App/App/Info.plist || true
+
+          sed -i '' 's/com.hanging360.tech/com.hanging360.app/g' ios/App/App.xcodeproj/project.pbxproj || true
+
           cd ios/App
-          agvtool new-marketing-version "$APP_VERSION" || true
+          agvtool new-marketing-version "0.3" || true
           agvtool new-version -all "$BUILD_NUMBER" || true
           cd ../..
 
-      - name: Configure signing
+      - name: Set up code signing
         script: |
-          xcode-project use-profiles
+          xcode-project use-profiles --project "$XCODE_PROJECT"
 
-      - name: Build IPA
+      - name: Build signed IPA
         script: |
           xcode-project build-ipa \
             --project "$XCODE_PROJECT" \
             --scheme "$XCODE_SCHEME" \
+            --archive-xcargs "CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM=C427U3735D PROVISIONING_PROFILE_SPECIFIER='Hanging360' PRODUCT_BUNDLE_IDENTIFIER=com.hanging360.app MARKETING_VERSION=0.3 CURRENT_PROJECT_VERSION=$BUILD_NUMBER" \
+            --export-xcargs "DEVELOPMENT_TEAM=C427U3735D PROVISIONING_PROFILE_SPECIFIER='Hanging360'" \
             --verbose
 
     artifacts:
       - build/ios/ipa/*.ipa
       - build/ios/xcarchive/*.xcarchive
       - /tmp/xcodebuild_logs/*.log
+      - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.app
 
     publishing:
       email:
