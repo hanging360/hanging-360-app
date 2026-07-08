@@ -10,7 +10,7 @@ workflows:
         XCODE_PROJECT: "ios/App/App.xcodeproj"
         XCODE_SCHEME: "App"
         BUNDLE_ID: "com.hanging360.app" # <-- cámbialo
-        APP_STORE_APPLE_ID: "1234567890" # <-- opcional para publishing
+        APP_STORE_APPLE_ID: "cubanito_com@yahoo.com" # <-- opcional para publishing
 
     cache:
       cache_paths:
@@ -69,7 +69,7 @@ workflows:
     publishing:
       email:
         recipients:
-          - tu-correo@ejemplo.com
+          - cubanito_com@yahoo.com
         notify:
           success: true
           failure: true
