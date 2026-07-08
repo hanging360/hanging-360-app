@@ -12,7 +12,6 @@ workflows:
       vars:
         XCODE_PROJECT: "ios/App/App.xcodeproj"
         XCODE_SCHEME: "App"
-        BUNDLE_ID: "com.hanging360.app"
 
     cache:
       cache_paths:
@@ -55,7 +54,7 @@ workflows:
 
       - name: Set up code signing
         script: |
-          xcode-project use-profiles
+          xcode-project use-profiles --project "$XCODE_PROJECT"
 
       - name: Build signed IPA
         script: |
