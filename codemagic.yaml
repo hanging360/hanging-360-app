@@ -6,15 +6,14 @@ workflows:
     environment:
       xcode: latest
       cocoapods: default
-      ios_signing:
-        distribution_type: app_store
-        bundle_identifier: com.hanging360.app
       vars:
         XCODE_PROJECT: "ios/App/App.xcodeproj"
         XCODE_SCHEME: "App"
-        APP_VERSION: "0.3"
         BUNDLE_ID: "com.hanging360.app"
+        DEVELOPMENT_TEAM: "C427U3735D"
         PROVISIONING_PROFILE_SPECIFIER: "Hanging360"
+        CODE_SIGN_IDENTITY: "Apple Distribution"
+        MARKETING_VERSION: "0.3"
 
     cache:
       cache_paths:
@@ -30,6 +29,13 @@ workflows:
           npm -v
           xcodebuild -version
           pod --version
+
+      - name: Validate signing assets
+        script: |
+          echo "=== Installed code signing identities ==="
+          security find-identity -v -p codesigning || true
+          echo "=== Installed provisioning profiles ==="
+          ls -la ~/Library/MobileDevice/Provisioning\ Profiles || true
 
       - name: Install JS dependencies
         script: |
@@ -49,42 +55,36 @@ workflows:
           pod install
           cd ../..
 
-      - name: Force Bundle ID and version
+      - name: Set iOS build number
         script: |
-          /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier com.hanging360.app" ios/App/App/Info.plist || true
-          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString 0.3" ios/App/App/Info.plist || true
-          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" ios/App/App/Info.plist || true
-
-          sed -i '' 's/com.hanging360.tech/com.hanging360.app/g' ios/App/App.xcodeproj/project.pbxproj || true
-
           cd ios/App
-          agvtool new-marketing-version "0.3" || true
           agvtool new-version -all "$BUILD_NUMBER" || true
           cd ../..
 
-      - name: Set up code signing
-        script: |
-          xcode-project use-profiles --project "$XCODE_PROJECT"
-
       - name: Build signed IPA
-  script: |
-    xcode-project build-ipa \
-      --project "$XCODE_PROJECT" \
-      --scheme "$XCODE_SCHEME" \
-      --archive-xcargs "CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM=$DEVELOPMENT_TEAM PROVISIONING_PROFILE_SPECIFIER=$PROVISIONING_PROFILE_SPECIFIER PRODUCT_BUNDLE_IDENTIFIER=$BUNDLE_ID MARKETING_VERSION=$MARKETING_VERSION CURRENT_PROJECT_VERSION=$BUILD_NUMBER CODE_SIGN_IDENTITY=Apple\ Distribution" \
-      --export-xcargs "DEVELOPMENT_TEAM=$DEVELOPMENT_TEAM PROVISIONING_PROFILE_SPECIFIER=$PROVISIONING_PROFILE_SPECIFIER" \
-      --verbose
+        script: |
+          xcode-project build-ipa \
+            --project "$XCODE_PROJECT" \
+            --scheme "$XCODE_SCHEME" \
+            --archive-xcargs "CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM=$DEVELOPMENT_TEAM PROVISIONING_PROFILE_SPECIFIER=$PROVISIONING_PROFILE_SPECIFIER PRODUCT_BUNDLE_IDENTIFIER=$BUNDLE_ID MARKETING_VERSION=$MARKETING_VERSION CURRENT_PROJECT_VERSION=$BUILD_NUMBER CODE_SIGN_IDENTITY=Apple\ Distribution" \
+            --export-xcargs "DEVELOPMENT_TEAM=$DEVELOPMENT_TEAM PROVISIONING_PROFILE_SPECIFIER=$PROVISIONING_PROFILE_SPECIFIER" \
+            --verbose
+
+      - name: Print xcodebuild logs
+        script: |
+          echo "=== xcodebuild logs ==="
+          find /tmp/xcodebuild_logs -type f -name "*.log" -maxdepth 2 -print || true
+          tail -n 200 /tmp/xcodebuild_logs/*.log || true
 
     artifacts:
       - build/ios/ipa/*.ipa
-      - build/ios/xcarchive/*.xcarchive
       - /tmp/xcodebuild_logs/*.log
       - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.app
 
     publishing:
       email:
         recipients:
-          - cubanito_com@yahoo.com
+          - tu-correo@ejemplo.com
         notify:
           success: true
           failure: true
