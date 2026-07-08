@@ -67,13 +67,13 @@ workflows:
           xcode-project use-profiles --project "$XCODE_PROJECT"
 
       - name: Build signed IPA
-        script: |
-          xcode-project build-ipa \
-            --project "$XCODE_PROJECT" \
-            --scheme "$XCODE_SCHEME" \
-            --archive-xcargs "CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM=C427U3735D PROVISIONING_PROFILE_SPECIFIER='Hanging360' PRODUCT_BUNDLE_IDENTIFIER=com.hanging360.app MARKETING_VERSION=0.3 CURRENT_PROJECT_VERSION=$BUILD_NUMBER" \
-            --export-xcargs "DEVELOPMENT_TEAM=C427U3735D PROVISIONING_PROFILE_SPECIFIER='Hanging360'" \
-            --verbose
+  script: |
+    xcode-project build-ipa \
+      --project "$XCODE_PROJECT" \
+      --scheme "$XCODE_SCHEME" \
+      --archive-xcargs "CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM=$DEVELOPMENT_TEAM PROVISIONING_PROFILE_SPECIFIER=$PROVISIONING_PROFILE_SPECIFIER PRODUCT_BUNDLE_IDENTIFIER=$BUNDLE_ID MARKETING_VERSION=$MARKETING_VERSION CURRENT_PROJECT_VERSION=$BUILD_NUMBER CODE_SIGN_IDENTITY=Apple\ Distribution" \
+      --export-xcargs "DEVELOPMENT_TEAM=$DEVELOPMENT_TEAM PROVISIONING_PROFILE_SPECIFIER=$PROVISIONING_PROFILE_SPECIFIER" \
+      --verbose
 
     artifacts:
       - build/ios/ipa/*.ipa
