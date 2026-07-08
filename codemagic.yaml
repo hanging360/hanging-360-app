@@ -12,6 +12,8 @@ workflows:
       vars:
         XCODE_PROJECT: "ios/App/App.xcodeproj"
         XCODE_SCHEME: "App"
+        BUNDLE_ID: "com.hanging360.app"
+        APP_VERSION: "0.3"
 
     cache:
       cache_paths:
@@ -46,10 +48,11 @@ workflows:
           pod install
           cd ../..
 
-      - name: Set iOS build number
+      - name: Set iOS app version and build number
         script: |
           cd ios/App
-          agvtool new-version -all $BUILD_NUMBER || true
+          agvtool new-marketing-version "$APP_VERSION" || true
+          agvtool new-version -all "$BUILD_NUMBER" || true
           cd ../..
 
       - name: Set up code signing
@@ -61,6 +64,8 @@ workflows:
           xcode-project build-ipa \
             --project "$XCODE_PROJECT" \
             --scheme "$XCODE_SCHEME" \
+            --archive-xcargs "CODE_SIGN_STYLE=Manual PROVISIONING_PROFILE_SPECIFIER='Hanging360 App Store 1' PRODUCT_BUNDLE_IDENTIFIER=com.hanging360.app MARKETING_VERSION=0.3 CURRENT_PROJECT_VERSION=$BUILD_NUMBER" \
+            --export-xcargs "PROVISIONING_PROFILE_SPECIFIER='Hanging360 App Store 1'" \
             --verbose
 
     artifacts:
