@@ -15,6 +15,8 @@ workflows:
         BUNDLE_ID: "com.hanging360.app"
         DEVELOPMENT_TEAM: "C427U3735D"
         MARKETING_VERSION: "0.3"
+    integrations:
+      app_store_connect: app_store_connect_hanging360
 
     cache:
       cache_paths:
@@ -65,27 +67,20 @@ workflows:
           agvtool new-version -all "$BUILD_NUMBER" || true
           cd ../..
 
-      - name: Create ExportOptions.plist
+      - name: Initialize keychain
+        script: keychain initialize
+
+      - name: Fetch signing files
         script: |
-          cat > /Users/builder/export_options.plist <<EOF
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-            <key>method</key>
-            <string>app-store</string>
-            <key>teamID</key>
-            <string>C427U3735D</string>
-            <key>signingStyle</key>
-            <string>automatic</string>
-            <key>compileBitcode</key>
-            <false/>
-            <key>uploadBitcode</key>
-            <false/>
-          </dict>
-          </plist>
-          EOF
-          plutil -lint /Users/builder/export_options.plist
+          app-store-connect fetch-signing-files "$BUNDLE_ID" \
+            --type IOS_APP_STORE \
+            --create
+
+      - name: Add certificates to keychain
+        script: keychain add-certificates
+
+      - name: Apply provisioning profiles to Xcode project
+        script: xcode-project use-profiles
 
       - name: Show code signing settings
         script: |
@@ -96,8 +91,6 @@ workflows:
           xcode-project build-ipa \
             --project "$XCODE_PROJECT" \
             --scheme "$XCODE_SCHEME" \
-            --archive-xcargs "DEVELOPMENT_TEAM=$DEVELOPMENT_TEAM PRODUCT_BUNDLE_IDENTIFIER=$BUNDLE_ID MARKETING_VERSION=$MARKETING_VERSION CURRENT_PROJECT_VERSION=$BUILD_NUMBER" \
-            --export-options-plist /Users/builder/export_options.plist \
             --verbose
 
       - name: Print xcodebuild logs
