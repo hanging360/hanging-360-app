@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.hanging360.tech',
+  appId: 'com.hanging360.app',
   appName: 'Hanging360',
   webDir: 'www',
   server: {
