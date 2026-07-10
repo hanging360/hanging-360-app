@@ -53,9 +53,6 @@ export async function initPushNotifications(targetWindow?: Window | null) {
     return;
   }
 
-  // Register with APNs / FCM
-  await PushNotifications.register();
-
   // Listen for registration success
   PushNotifications.addListener("registration", (token) => {
     const value = typeof token === "object" && token && "value" in token ? (token as PushRegistrationToken).value : undefined;
@@ -79,4 +76,7 @@ export async function initPushNotifications(targetWindow?: Window | null) {
   PushNotifications.addListener("pushNotificationActionPerformed", (action) => {
     console.log("Push action performed:", action);
   });
+
+  // Register with APNs / FCM after listeners are ready
+  await PushNotifications.register();
 }
