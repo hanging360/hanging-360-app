@@ -18,7 +18,7 @@ import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
 
-    private static final String CHANNEL_ID = "hanging360_default";
+    private static final String CHANNEL_ID = "hanging360_alerts_v2";
 
     @Override
     public void onCreate(Bundle savedInstanceState) {

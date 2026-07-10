@@ -14,7 +14,7 @@ export default function AppShell() {
 
   useEffect(() => {
     if (isNative) {
-      initPushNotifications();
+      initPushNotifications(iframeRef.current?.contentWindow);
       // Modo inmersivo: ocultar status bar y overlay
       StatusBar.hide().catch(() => {});
       StatusBar.setOverlaysWebView({ overlay: true }).catch(() => {});

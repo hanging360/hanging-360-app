@@ -1,13 +1,38 @@
 import { PushNotifications, isNativePlatform } from "../lib/capacitorPlugins";
 
-export async function initPushNotifications() {
+const CHANNEL_ID = "hanging360_alerts_v2";
+const CLIENT_ORIGIN = "https://tech.hanging360.com";
+
+type PushRegistrationToken = {
+  value?: string;
+};
+
+const getPlatform = () => {
+  const capacitor = (window as Window & { Capacitor?: { getPlatform?: () => string } }).Capacitor;
+  return capacitor?.getPlatform?.() ?? "unknown";
+};
+
+const sendPushTokenToWebApp = (targetWindow: Window | null | undefined, token: string) => {
+  const payload = {
+    type: "HANGING360_PUSH_TOKEN",
+    token,
+    platform: getPlatform(),
+    channelId: CHANNEL_ID,
+  };
+
+  window.localStorage.setItem("hanging360_push_token", token);
+  window.localStorage.setItem("hanging360_push_platform", payload.platform);
+  targetWindow?.postMessage(payload, CLIENT_ORIGIN);
+};
+
+export async function initPushNotifications(targetWindow?: Window | null) {
   if (!isNativePlatform()) return;
 
   // Ensure a high-importance channel with sound exists (Android 8+)
   try {
-    if (typeof (PushNotifications as any).createChannel === "function") {
-      await (PushNotifications as any).createChannel({
-        id: "hanging360_default",
+    if (PushNotifications.createChannel) {
+      await PushNotifications.createChannel({
+        id: CHANNEL_ID,
         name: "Notificaciones Hanging360",
         description: "Avisos de citas y mensajes",
         importance: 5,
@@ -33,9 +58,11 @@ export async function initPushNotifications() {
 
   // Listen for registration success
   PushNotifications.addListener("registration", (token) => {
-    const value = typeof token === "object" && token && "value" in token ? token.value : undefined;
-    console.log("Push registration token:", value);
-    // TODO: Send token.value to your backend (e.g. POST to /push/register)
+    const value = typeof token === "object" && token && "value" in token ? (token as PushRegistrationToken).value : undefined;
+    if (!value) return;
+
+    sendPushTokenToWebApp(targetWindow, value);
+    console.log("Push registration token received");
   });
 
   // Listen for registration errors

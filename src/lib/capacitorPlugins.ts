@@ -37,7 +37,19 @@ type StatusBarPlugin = {
 
 type PermissionState = "prompt" | "prompt-with-rationale" | "granted" | "denied";
 
+type PushNotificationChannel = {
+  id: string;
+  name: string;
+  description?: string;
+  importance?: number;
+  visibility?: number;
+  sound?: string;
+  vibration?: boolean;
+  lights?: boolean;
+};
+
 interface PushNotificationsPlugin {
+  createChannel?: (channel: PushNotificationChannel) => Promise<void>;
   requestPermissions: () => Promise<{ receive: PermissionState }>;
   register: () => Promise<void>;
   addListener: (
@@ -62,17 +74,26 @@ export const StatusBar: StatusBarPlugin = {
 };
 
 export const PushNotifications: PushNotificationsPlugin = {
+  createChannel: (channel) => resolvePlugin<PushNotificationsPlugin>("PushNotifications", {
+    createChannel: async () => {},
+    requestPermissions: async () => ({ receive: "denied" }),
+    register: async () => {},
+    addListener: async () => listenerHandle,
+  }).createChannel?.(channel) ?? Promise.resolve(),
   requestPermissions: () => resolvePlugin<PushNotificationsPlugin>("PushNotifications", {
+    createChannel: async () => {},
     requestPermissions: async () => ({ receive: "denied" }),
     register: async () => {},
     addListener: async () => listenerHandle,
   }).requestPermissions(),
   register: () => resolvePlugin<PushNotificationsPlugin>("PushNotifications", {
+    createChannel: async () => {},
     requestPermissions: async () => ({ receive: "denied" }),
     register: async () => {},
     addListener: async () => listenerHandle,
   }).register(),
   addListener: (eventName, listenerFunc) => resolvePlugin<PushNotificationsPlugin>("PushNotifications", {
+    createChannel: async () => {},
     requestPermissions: async () => ({ receive: "denied" }),
     register: async () => {},
     addListener: async () => listenerHandle,
