@@ -25,6 +25,13 @@ const sendPushTokenToWebApp = (targetWindow: Window | null | undefined, token: s
   targetWindow?.postMessage(payload, CLIENT_ORIGIN);
 };
 
+export const postStoredPushTokenToWebApp = (targetWindow: Window | null | undefined) => {
+  const token = window.localStorage.getItem("hanging360_push_token");
+  if (!token) return;
+
+  sendPushTokenToWebApp(targetWindow, token);
+};
+
 export async function initPushNotifications(targetWindow?: Window | null) {
   if (!isNativePlatform()) return;
 

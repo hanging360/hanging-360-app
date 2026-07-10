@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { SplashScreen, StatusBar, isNativePlatform } from "../lib/capacitorPlugins";
-import { initPushNotifications } from "../services/pushNotifications";
+import { initPushNotifications, postStoredPushTokenToWebApp } from "../services/pushNotifications";
 
 const CLIENT_URL = "https://tech.hanging360.com/my-appointment";
 
@@ -70,6 +70,7 @@ export default function AppShell() {
     retryCount.current = 0;
     setIsLoaded(true);
     if (isNative) {
+      postStoredPushTokenToWebApp(iframeRef.current?.contentWindow);
       SplashScreen.hide().catch(() => {});
     }
   }, [isNative]);
