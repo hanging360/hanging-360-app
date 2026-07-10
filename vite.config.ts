@@ -1,4 +1,5 @@
 import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
 import path from "node:path";
 
 const preserveRollupErrorContext = () => ({
@@ -27,7 +28,7 @@ const preserveRollupErrorContext = () => ({
 });
 
 export default defineConfig({
-  plugins: [preserveRollupErrorContext()],
+  plugins: [react(), preserveRollupErrorContext()],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
