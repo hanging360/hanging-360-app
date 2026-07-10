@@ -1,61 +1,73 @@
-## Problema real
-La app nativa tiene partes incompletas para notificaciones/permisos:
+## Qué darle al proyecto web (PWA en tech.hanging360.com)
 
-- Android solo tiene permiso de notificaciones, pero faltan permisos de ubicación y micrófono.
-- iOS no tiene textos de autorización para micrófono/ubicación ni configuración completa para push.
-- El canal Android actual puede haberse creado sin sonido en teléfonos ya instalados; Android no cambia el sonido de un canal existente.
-- En iOS falta el reenvío del token APNs desde `AppDelegate` al plugin de Capacitor Push Notifications.
-- El token push solo se imprime en consola; no se entrega todavía a la web/servidor, así que el backend no sabe a qué teléfono enviar mensajes.
-- `capacitor.config.ts` no incluye `presentationOptions: ["badge", "sound", "alert"]`, que ya estaba definido como requisito del proyecto.
+La app nativa (este proyecto) ya pide permisos, registra el token push y lo envía al iframe por `postMessage`. Lo que falta es que **el proyecto web** lo reciba, lo guarde en Supabase asociado al usuario logueado, y que el backend lo use para mandar notificaciones vía FCM (Android) y APNs (iOS).
 
-## Plan de implementación
+## 1. Contrato de mensaje que envía la app nativa
 
-1. **Configurar Capacitor para alertas, sonido y badge**
-   - Actualizar `capacitor.config.ts` con:
-     - `plugins.PushNotifications.presentationOptions = ["badge", "sound", "alert"]`
-     - `allowNavigation: ["tech.hanging360.com"]` para mantener autorizado el WebView remoto.
+La web debe escuchar `window.addEventListener("message", ...)` con este payload exacto:
 
-2. **Corregir Android: permisos + canal con sonido**
-   - En `AndroidManifest.xml`, agregar permisos para:
-     - `ACCESS_FINE_LOCATION`
-     - `ACCESS_COARSE_LOCATION`
-     - `RECORD_AUDIO`
-     - `MODIFY_AUDIO_SETTINGS`
-   - Cambiar el notification channel a un ID nuevo, por ejemplo `hanging360_alerts_v2`, porque Android no permite arreglar sonido/importancia de un canal ya creado en instalaciones existentes.
-   - Actualizar el `meta-data` del canal default Firebase para usar ese nuevo ID.
-   - Mantener `IMPORTANCE_HIGH`, vibración, luces y sonido default.
+```ts
+{
+  type: "HANGING360_PUSH_TOKEN",
+  token: string,           // token FCM (Android) o APNs (iOS)
+  platform: "android" | "ios" | "web",
+  channelId: "hanging360_alerts_v2"
+}
+```
 
-3. **Corregir iOS: permisos y push nativo**
-   - En `Info.plist`, agregar textos obligatorios de autorización:
-     - `NSLocationWhenInUseUsageDescription`
-     - `NSMicrophoneUsageDescription`
-     - `NSCameraUsageDescription` si la web puede usar cámara junto con micrófono.
-   - Agregar `UIBackgroundModes` con `remote-notification` para mejor manejo de notificaciones remotas.
-   - Actualizar `AppDelegate.swift` para reenviar a Capacitor:
-     - `didRegisterForRemoteNotificationsWithDeviceToken`
-     - `didFailToRegisterForRemoteNotificationsWithError`
+Origen del mensaje: la app nativa. La web debe validar que `event.data?.type === "HANGING360_PUSH_TOKEN"` y **no** filtrar por `event.origin` (viene del WebView nativo, no de un dominio http).
 
-4. **Agregar entitlement de Apple Push Notifications**
-   - Crear `ios/App/App/App.entitlements` con `aps-environment`.
-   - Conectar ese archivo al target iOS en `project.pbxproj` usando `CODE_SIGN_ENTITLEMENTS`.
-   - Usar `development` para debug y `production` para release.
+## 2. Tabla en Supabase para guardar tokens
 
-5. **Mejorar el registro del token push**
-   - Extender el wrapper para que cuando reciba el token de push:
-     - lo guarde localmente,
-     - lo mande por `postMessage` al iframe `https://tech.hanging360.com`, para que la web pueda registrarlo con usuario/rol si tiene listener,
-     - y deje listo el punto exacto donde conectar `/push/register` si existe en el backend.
-   - Mantener logs mínimos para diagnóstico sin exponer secretos.
+En el proyecto web crear una tabla `push_tokens`:
 
-6. **Actualizar tipos del plugin**
-   - Agregar `createChannel` al wrapper TypeScript de `PushNotifications`, para que Android cree el canal de alta prioridad desde JS también.
-   - Usar el mismo canal nuevo `hanging360_alerts_v2` en JS y Android nativo.
+- `id uuid pk`
+- `user_id uuid` → `auth.users(id)`
+- `token text unique`
+- `platform text` (`android` | `ios` | `web`)
+- `channel_id text`
+- `updated_at timestamptz`
 
-7. **Documentar pasos obligatorios después del cambio**
-   - El usuario deberá hacer `git pull`.
-   - Ejecutar `npx cap sync android` y `npx cap sync ios`.
-   - Reinstalar la app en Android o borrar el canal viejo desde ajustes del teléfono; con canal nuevo debería aplicar sonido automáticamente.
-   - En Apple Developer/Codemagic, confirmar que el App ID `com.hanging360.app` tiene Push Notifications habilitado y provisioning profile regenerado.
+Con RLS: cada usuario solo puede insertar/actualizar/borrar sus propios tokens; `service_role` full access (para que el edge function envíe). GRANTs a `authenticated` y `service_role` según convención del proyecto.
 
-## Resultado esperado
-Android/iPhone pedirán permisos correctos, las notificaciones podrán aparecer como alerta/banner/toast nativo, con sonido y badge cuando el payload del servidor incluya badge/count. La app quedará preparada para registrar el token del teléfono y que el backend pueda enviar mensajes reales.
+## 3. Hook en la web que escuche y guarde el token
+
+Un `useEffect` global (en el layout raíz o `AuthProvider`) que:
+
+1. Escuche `message` con `type === "HANGING360_PUSH_TOKEN"`.
+2. Cuando llegue y haya usuario logueado, haga `upsert` en `push_tokens` por `token`.
+3. Si el token llega antes del login, guardarlo en memoria/localStorage y hacer el upsert después del login.
+
+## 4. Edge function para enviar notificaciones
+
+Una función `send-push` en Supabase que:
+
+- Recibe `{ user_id, title, body, data?, badge? }`.
+- Lee los tokens de ese usuario desde `push_tokens`.
+- Envía a FCM para `platform=android` y a APNs para `platform=ios`.
+- Payload debe incluir `android.notification.channel_id = "hanging360_alerts_v2"` y `apns.payload.aps = { alert, sound: "default", badge }` para que suene y aparezca badge/toast fuera de la app.
+
+## 5. Credenciales que el usuario debe entregar al proyecto web
+
+Para que la edge function pueda enviar:
+
+- **Firebase Service Account JSON** (para FCM HTTP v1) — guardado como secret `FCM_SERVICE_ACCOUNT_JSON`.
+- **APNs Auth Key `.p8`** + Key ID + Team ID + Bundle ID `com.hanging360.app` — guardados como secrets `APNS_KEY_P8`, `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_BUNDLE_ID`.
+- `APNS_ENVIRONMENT` = `development` para TestFlight/debug, `production` para App Store.
+
+## 6. Puntos donde disparar notificaciones desde la web
+
+Desde el código del proyecto web, llamar a la edge function `send-push` en los eventos donde debe sonar el teléfono: nueva cita asignada, mensaje del staff, alerta de geolocation, etc.
+
+---
+
+### Detalles técnicos
+
+- El canal Android **debe** ser exactamente `hanging360_alerts_v2` en el payload FCM; si no, Android usa un canal por defecto sin sonido.
+- APNs necesita `"sound": "default"` en `aps` para que suene; badge requiere número entero en `aps.badge`.
+- Para toast/heads-up en Android el payload debe ser `notification` (no solo `data`) y el canal con `IMPORTANCE_HIGH` (ya está así en el nativo).
+- La web no necesita implementar Web Push / service worker para esto — el transporte es FCM/APNs a través del token nativo.
+
+### Qué NO se cambia en este proyecto (nativo)
+
+Este plan es solo para el proyecto web. En el nativo ya está: permisos, canal `hanging360_alerts_v2`, entitlement APNs, reenvío de token al iframe. No hay que tocar más aquí.
