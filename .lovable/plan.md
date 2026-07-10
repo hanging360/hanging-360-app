@@ -1,67 +1,61 @@
-## Problema actual
+## Problema real
+La app nativa tiene partes incompletas para notificaciones/permisos:
 
-Codemagic falla con:
+- Android solo tiene permiso de notificaciones, pero faltan permisos de ubicación y micrófono.
+- iOS no tiene textos de autorización para micrófono/ubicación ni configuración completa para push.
+- El canal Android actual puede haberse creado sin sonido en teléfonos ya instalados; Android no cambia el sonido de un canal existente.
+- En iOS falta el reenvío del token APNs desde `AppDelegate` al plugin de Capacitor Push Notifications.
+- El token push solo se imprime en consola; no se entrega todavía a la web/servidor, así que el backend no sabe a qué teléfono enviar mensajes.
+- `capacitor.config.ts` no incluye `presentationOptions: ["badge", "sound", "alert"]`, que ya estaba definido como requisito del proyecto.
 
-```text
-App Store Connect integration "app_store_connect_hanging360" does not exist
-```
+## Plan de implementación
 
-Ese nombre no existe en tu cuenta de Codemagic, así que no debe estar referenciado en el workflow.
+1. **Configurar Capacitor para alertas, sonido y badge**
+   - Actualizar `capacitor.config.ts` con:
+     - `plugins.PushNotifications.presentationOptions = ["badge", "sound", "alert"]`
+     - `allowNavigation: ["tech.hanging360.com"]` para mantener autorizado el WebView remoto.
 
-## Cambios aplicados
+2. **Corregir Android: permisos + canal con sonido**
+   - En `AndroidManifest.xml`, agregar permisos para:
+     - `ACCESS_FINE_LOCATION`
+     - `ACCESS_COARSE_LOCATION`
+     - `RECORD_AUDIO`
+     - `MODIFY_AUDIO_SETTINGS`
+   - Cambiar el notification channel a un ID nuevo, por ejemplo `hanging360_alerts_v2`, porque Android no permite arreglar sonido/importancia de un canal ya creado en instalaciones existentes.
+   - Actualizar el `meta-data` del canal default Firebase para usar ese nuevo ID.
+   - Mantener `IMPORTANCE_HIGH`, vibración, luces y sonido default.
 
-### 1. `codemagic.yaml`
+3. **Corregir iOS: permisos y push nativo**
+   - En `Info.plist`, agregar textos obligatorios de autorización:
+     - `NSLocationWhenInUseUsageDescription`
+     - `NSMicrophoneUsageDescription`
+     - `NSCameraUsageDescription` si la web puede usar cámara junto con micrófono.
+   - Agregar `UIBackgroundModes` con `remote-notification` para mejor manejo de notificaciones remotas.
+   - Actualizar `AppDelegate.swift` para reenviar a Capacitor:
+     - `didRegisterForRemoteNotificationsWithDeviceToken`
+     - `didFailToRegisterForRemoteNotificationsWithError`
 
-- Se eliminó cualquier dependencia de la integración inexistente `app_store_connect_hanging360`.
-- Se mantiene `environment.ios_signing` con:
-  - `distribution_type: app_store`
-  - `bundle_identifier: com.hanging360.app`
-- Se quitó el `ExportOptions.plist` manual.
-- Se quitaron los `--archive-xcargs`, `--export-xcargs` y perfiles forzados manualmente.
-- Se añadió el flujo estándar de firma:
+4. **Agregar entitlement de Apple Push Notifications**
+   - Crear `ios/App/App/App.entitlements` con `aps-environment`.
+   - Conectar ese archivo al target iOS en `project.pbxproj` usando `CODE_SIGN_ENTITLEMENTS`.
+   - Usar `development` para debug y `production` para release.
 
-```yaml
-- name: Initialize keychain
-  script: keychain initialize
+5. **Mejorar el registro del token push**
+   - Extender el wrapper para que cuando reciba el token de push:
+     - lo guarde localmente,
+     - lo mande por `postMessage` al iframe `https://tech.hanging360.com`, para que la web pueda registrarlo con usuario/rol si tiene listener,
+     - y deje listo el punto exacto donde conectar `/push/register` si existe en el backend.
+   - Mantener logs mínimos para diagnóstico sin exponer secretos.
 
-- name: Add certificates to keychain
-  script: keychain add-certificates
+6. **Actualizar tipos del plugin**
+   - Agregar `createChannel` al wrapper TypeScript de `PushNotifications`, para que Android cree el canal de alta prioridad desde JS también.
+   - Usar el mismo canal nuevo `hanging360_alerts_v2` en JS y Android nativo.
 
-- name: Apply provisioning profiles to Xcode project
-  script: xcode-project use-profiles
-```
-
-El build queda simple:
-
-```yaml
-xcode-project build-ipa \
-  --project "$XCODE_PROJECT" \
-  --scheme "$XCODE_SCHEME" \
-  --verbose
-```
-
-### 2. `capacitor.config.ts`
-
-Se corrigió el `appId` a:
-
-```ts
-appId: 'com.hanging360.app'
-```
-
-### 3. Proyecto iOS
-
-Se corrigió `PRODUCT_BUNDLE_IDENTIFIER` en `ios/App/App.xcodeproj/project.pbxproj` para usar:
-
-```text
-com.hanging360.app
-```
+7. **Documentar pasos obligatorios después del cambio**
+   - El usuario deberá hacer `git pull`.
+   - Ejecutar `npx cap sync android` y `npx cap sync ios`.
+   - Reinstalar la app en Android o borrar el canal viejo desde ajustes del teléfono; con canal nuevo debería aplicar sonido automáticamente.
+   - En Apple Developer/Codemagic, confirmar que el App ID `com.hanging360.app` tiene Push Notifications habilitado y provisioning profile regenerado.
 
 ## Resultado esperado
-
-Codemagic ya no debe fallar por la integración inexistente:
-
-```text
-app_store_connect_hanging360
-```
-
-Si aparece otro error, debe ser de certificados/perfiles reales cargados en Codemagic, no por un nombre incorrecto en el YAML.
+Android/iPhone pedirán permisos correctos, las notificaciones podrán aparecer como alerta/banner/toast nativo, con sonido y badge cuando el payload del servidor incluya badge/count. La app quedará preparada para registrar el token del teléfono y que el backend pueda enviar mensajes reales.
