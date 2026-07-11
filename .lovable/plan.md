@@ -1,73 +1,42 @@
-## Qué darle al proyecto web (PWA en tech.hanging360.com)
+# Fix: Splash de Capacitor muestra cuadro blanco en vez del logo
 
-La app nativa (este proyecto) ya pide permisos, registra el token push y lo envía al iframe por `postMessage`. Lo que falta es que **el proyecto web** lo reciba, lo guarde en Supabase asociado al usuario logueado, y que el backend lo use para mandar notificaciones vía FCM (Android) y APNs (iOS).
+## Diagnóstico
 
-## 1. Contrato de mensaje que envía la app nativa
+Los archivos `splash.png` actuales son los **placeholders por defecto de Capacitor** (imágenes casi vacías, 4–41 KB, sin logo). Por eso al abrir la app se ve solo un cuadro blanco antes de que cargue la web:
 
-La web debe escuchar `window.addEventListener("message", ...)` con este payload exacto:
+- `android/app/src/main/res/drawable*/splash.png` (11 archivos, todos genéricos)
+- `ios/App/App/Assets.xcassets/Splash.imageset/splash-2732x2732*.png` (3 archivos genéricos)
 
-```ts
-{
-  type: "HANGING360_PUSH_TOKEN",
-  token: string,           // token FCM (Android) o APNs (iOS)
-  platform: "android" | "ios" | "web",
-  channelId: "hanging360_alerts_v2"
-}
-```
+El logo real vive en `src/assets/app-icon.png` (512×512) y `public/app-icon-512.png`.
 
-Origen del mensaje: la app nativa. La web debe validar que `event.data?.type === "HANGING360_PUSH_TOKEN"` y **no** filtrar por `event.origin` (viene del WebView nativo, no de un dominio http).
+## Plan
 
-## 2. Tabla en Supabase para guardar tokens
+1. **Generar un splash maestro 2732×2732** con:
+   - Fondo `#1a1a1a` (mismo tema que la app / `theme-color`).
+   - Logo de la app (`src/assets/app-icon.png`) centrado, ~35 % del lado.
+   - Guardarlo como `/tmp/splash-master.png`.
 
-En el proyecto web crear una tabla `push_tokens`:
+2. **Regenerar todos los splash de Android** (redimensionando el maestro al tamaño exacto que Capacitor espera en cada bucket):
 
-- `id uuid pk`
-- `user_id uuid` → `auth.users(id)`
-- `token text unique`
-- `platform text` (`android` | `ios` | `web`)
-- `channel_id text`
-- `updated_at timestamptz`
+   ```
+   drawable/splash.png                480x320
+   drawable-port-mdpi/splash.png      320x480
+   drawable-port-hdpi/splash.png      480x800
+   drawable-port-xhdpi/splash.png     720x1280
+   drawable-port-xxhdpi/splash.png    960x1600
+   drawable-port-xxxhdpi/splash.png   1280x1920
+   drawable-land-*                    (versión landscape del mismo)
+   ```
 
-Con RLS: cada usuario solo puede insertar/actualizar/borrar sus propios tokens; `service_role` full access (para que el edge function envíe). GRANTs a `authenticated` y `service_role` según convención del proyecto.
+3. **Regenerar los 3 splash de iOS** en `Splash.imageset/` (todos 2732×2732, que es lo que espera `LaunchScreen.storyboard` via el asset `Splash`):
+   - `splash-2732x2732.png`
+   - `splash-2732x2732-1.png`
+   - `splash-2732x2732-2.png`
 
-## 3. Hook en la web que escuche y guarde el token
+4. **No tocar**: `capacitor.config.ts`, `LaunchScreen.storyboard`, `AndroidManifest.xml`, ni el icono de la app — solo se reemplazan los PNG de splash.
 
-Un `useEffect` global (en el layout raíz o `AuthProvider`) que:
+## Detalles técnicos
 
-1. Escuche `message` con `type === "HANGING360_PUSH_TOKEN"`.
-2. Cuando llegue y haya usuario logueado, haga `upsert` en `push_tokens` por `token`.
-3. Si el token llega antes del login, guardarlo en memoria/localStorage y hacer el upsert después del login.
-
-## 4. Edge function para enviar notificaciones
-
-Una función `send-push` en Supabase que:
-
-- Recibe `{ user_id, title, body, data?, badge? }`.
-- Lee los tokens de ese usuario desde `push_tokens`.
-- Envía a FCM para `platform=android` y a APNs para `platform=ios`.
-- Payload debe incluir `android.notification.channel_id = "hanging360_alerts_v2"` y `apns.payload.aps = { alert, sound: "default", badge }` para que suene y aparezca badge/toast fuera de la app.
-
-## 5. Credenciales que el usuario debe entregar al proyecto web
-
-Para que la edge function pueda enviar:
-
-- **Firebase Service Account JSON** (para FCM HTTP v1) — guardado como secret `FCM_SERVICE_ACCOUNT_JSON`.
-- **APNs Auth Key `.p8`** + Key ID + Team ID + Bundle ID `com.hanging360.app` — guardados como secrets `APNS_KEY_P8`, `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_BUNDLE_ID`.
-- `APNS_ENVIRONMENT` = `development` para TestFlight/debug, `production` para App Store.
-
-## 6. Puntos donde disparar notificaciones desde la web
-
-Desde el código del proyecto web, llamar a la edge function `send-push` en los eventos donde debe sonar el teléfono: nueva cita asignada, mensaje del staff, alerta de geolocation, etc.
-
----
-
-### Detalles técnicos
-
-- El canal Android **debe** ser exactamente `hanging360_alerts_v2` en el payload FCM; si no, Android usa un canal por defecto sin sonido.
-- APNs necesita `"sound": "default"` en `aps` para que suene; badge requiere número entero en `aps.badge`.
-- Para toast/heads-up en Android el payload debe ser `notification` (no solo `data`) y el canal con `IMPORTANCE_HIGH` (ya está así en el nativo).
-- La web no necesita implementar Web Push / service worker para esto — el transporte es FCM/APNs a través del token nativo.
-
-### Qué NO se cambia en este proyecto (nativo)
-
-Este plan es solo para el proyecto web. En el nativo ya está: permisos, canal `hanging360_alerts_v2`, entitlement APNs, reenvío de token al iframe. No hay que tocar más aquí.
+- Se usa Pillow (`PIL`) para componer fondo + logo centrado y exportar cada tamaño requerido, respetando orientación portrait/landscape en Android.
+- Tras aplicar el cambio, el usuario debe hacer `git pull` y `npx cap sync` para que Android Studio / Xcode empaqueten los nuevos assets en el próximo build (TestFlight / APK).
+- No requiere cambios de código en `src/` ni migraciones.
