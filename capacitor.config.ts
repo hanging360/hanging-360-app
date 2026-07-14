@@ -9,6 +9,17 @@ const config: CapacitorConfig = {
     allowNavigation: ['tech.hanging360.com']
   },
   plugins: {
+    SplashScreen: {
+      launchShowDuration: 250,
+      launchAutoHide: true,
+      launchFadeOutDuration: 100,
+      backgroundColor: '#ffffffff',
+      androidSplashResourceName: 'splash',
+      androidScaleType: 'CENTER_CROP',
+      showSpinner: false,
+      splashFullScreen: true,
+      splashImmersive: true
+    },
     PushNotifications: {
       presentationOptions: ['badge', 'sound', 'alert']
     }

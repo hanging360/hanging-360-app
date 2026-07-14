@@ -14,6 +14,7 @@ export default function AppShell() {
 
   useEffect(() => {
     if (isNative) {
+      SplashScreen.hide().catch(() => {});
       initPushNotifications(iframeRef.current?.contentWindow);
       // Modo inmersivo: ocultar status bar y overlay
       StatusBar.hide().catch(() => {});
@@ -71,7 +72,6 @@ export default function AppShell() {
     setIsLoaded(true);
     if (isNative) {
       postStoredPushTokenToWebApp(iframeRef.current?.contentWindow);
-      SplashScreen.hide().catch(() => {});
     }
   }, [isNative]);
 
