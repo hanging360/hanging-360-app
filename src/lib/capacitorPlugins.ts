@@ -17,6 +17,13 @@ export const isNativePlatform = () => {
   return bridge.getPlatform?.() !== "web";
 };
 
+export const getPlatform = (): "ios" | "android" | "web" => {
+  const bridge = getBridge();
+  const p = bridge?.getPlatform?.();
+  if (p === "ios" || p === "android") return p;
+  return "web";
+};
+
 const listenerHandle: PluginListenerHandle = {
   remove: async () => {},
 };
