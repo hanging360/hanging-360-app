@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { SplashScreen, StatusBar, isNativePlatform } from "../lib/capacitorPlugins";
+import { SplashScreen, StatusBar, isNativePlatform, getPlatform } from "../lib/capacitorPlugins";
 import { initPushNotifications, postStoredPushTokenToWebApp } from "../services/pushNotifications";
 
 const CLIENT_URL = "https://tech.hanging360.com/my-appointment";
@@ -11,23 +11,29 @@ export default function AppShell() {
   const retryCount = useRef(0);
   const MAX_RETRIES = 3;
   const isNative = isNativePlatform();
+  const platform = getPlatform();
+  const isIOS = platform === "ios";
+  const isAndroid = platform === "android";
 
   useEffect(() => {
     if (isNative) {
       SplashScreen.hide().catch(() => {});
       initPushNotifications(iframeRef.current?.contentWindow);
-      // Modo inmersivo: ocultar status bar y overlay
-      StatusBar.hide().catch(() => {});
-      StatusBar.setOverlaysWebView({ overlay: true }).catch(() => {});
-      // Ocultar system navigation bar (Android immersive sticky) vía WebView
-      const anyWin = window as any;
-      if (anyWin.AndroidFullScreen?.immersiveMode) {
-        anyWin.AndroidFullScreen.immersiveMode();
+      if (isAndroid) {
+        // Android: modo inmersivo (ocultar status/nav bar)
+        StatusBar.hide().catch(() => {});
+        StatusBar.setOverlaysWebView({ overlay: true }).catch(() => {});
+        const anyWin = window as any;
+        if (anyWin.AndroidFullScreen?.immersiveMode) {
+          anyWin.AndroidFullScreen.immersiveMode();
+        }
       }
+      // iOS: NO ocultar status bar (Apple Guideline 4). El safe-area del CSS
+      // se encarga de que el iframe no quede debajo del Dynamic Island / notch.
     } else {
       window.location.assign(CLIENT_URL);
     }
-  }, [isNative]);
+  }, [isNative, isAndroid]);
 
   useEffect(() => {
     if (!isNative) return;

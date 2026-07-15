@@ -80,7 +80,19 @@ export default function HomeScreen({ onSelectRole }: HomeScreenProps) {
         </svg>
 
         <div className="hanging-frame">
-          <a href="https://wa.me/17863400825" target="_blank" rel="noopener noreferrer">
+          <a
+            href="https://wa.me/17863400825"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Contactar por WhatsApp"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              minWidth: 44,
+              minHeight: 44,
+            }}
+          >
             <img src={LOGO_URL} alt="Hanging 360" className="home-logo" style={{ cursor: "pointer" }} />
           </a>
         </div>
