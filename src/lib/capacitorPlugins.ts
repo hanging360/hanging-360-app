@@ -57,6 +57,7 @@ type PushNotificationChannel = {
 
 interface PushNotificationsPlugin {
   createChannel?: (channel: PushNotificationChannel) => Promise<void>;
+  deleteChannel?: (options: { id: string }) => Promise<void>;
   requestPermissions: () => Promise<{ receive: PermissionState }>;
   register: () => Promise<void>;
   addListener: (
@@ -83,24 +84,35 @@ export const StatusBar: StatusBarPlugin = {
 export const PushNotifications: PushNotificationsPlugin = {
   createChannel: (channel) => resolvePlugin<PushNotificationsPlugin>("PushNotifications", {
     createChannel: async () => {},
+    deleteChannel: async () => {},
     requestPermissions: async () => ({ receive: "denied" }),
     register: async () => {},
     addListener: async () => listenerHandle,
   }).createChannel?.(channel) ?? Promise.resolve(),
+  deleteChannel: (options) => resolvePlugin<PushNotificationsPlugin>("PushNotifications", {
+    createChannel: async () => {},
+    deleteChannel: async () => {},
+    requestPermissions: async () => ({ receive: "denied" }),
+    register: async () => {},
+    addListener: async () => listenerHandle,
+  }).deleteChannel?.(options) ?? Promise.resolve(),
   requestPermissions: () => resolvePlugin<PushNotificationsPlugin>("PushNotifications", {
     createChannel: async () => {},
+    deleteChannel: async () => {},
     requestPermissions: async () => ({ receive: "denied" }),
     register: async () => {},
     addListener: async () => listenerHandle,
   }).requestPermissions(),
   register: () => resolvePlugin<PushNotificationsPlugin>("PushNotifications", {
     createChannel: async () => {},
+    deleteChannel: async () => {},
     requestPermissions: async () => ({ receive: "denied" }),
     register: async () => {},
     addListener: async () => listenerHandle,
   }).register(),
   addListener: (eventName, listenerFunc) => resolvePlugin<PushNotificationsPlugin>("PushNotifications", {
     createChannel: async () => {},
+    deleteChannel: async () => {},
     requestPermissions: async () => ({ receive: "denied" }),
     register: async () => {},
     addListener: async () => listenerHandle,

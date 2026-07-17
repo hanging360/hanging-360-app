@@ -1,10 +1,13 @@
-package com.hanging360.tech;
+package com.hanging360.app;
 
 import android.Manifest;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.Notification;
 import android.content.pm.PackageManager;
+import android.webkit.CookieManager;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
 import android.media.AudioAttributes;
 import android.media.RingtoneManager;
 import android.net.Uri;
@@ -25,12 +28,23 @@ import java.util.List;
 
 public class MainActivity extends BridgeActivity {
 
-    private static final String CHANNEL_ID = "hanging360_alerts_v2";
+    private static final String CHANNEL_ID = "hanging360_alerts_v3";
     private static final int RUNTIME_PERMISSIONS_REQUEST = 360;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        // Keep the remote portal's Supabase session and allow Android Autofill/
+        // Password Manager to recognize the login form inside the WebView.
+        WebView webView = getBridge().getWebView();
+        WebSettings settings = webView.getSettings();
+        settings.setDomStorageEnabled(true);
+        settings.setDatabaseEnabled(true);
+        settings.setSaveFormData(true);
+        CookieManager cookies = CookieManager.getInstance();
+        cookies.setAcceptCookie(true);
+        cookies.setAcceptThirdPartyCookies(webView, true);
 
         // Draw behind system bars so the WebView fills the entire screen
         WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
@@ -45,6 +59,12 @@ public class MainActivity extends BridgeActivity {
         if (hasFocus) {
             hideSystemBars();
         }
+    }
+
+    @Override
+    protected void onPause() {
+        CookieManager.getInstance().flush();
+        super.onPause();
     }
 
     @SuppressWarnings("deprecation")

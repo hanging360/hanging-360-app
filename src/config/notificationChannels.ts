@@ -23,7 +23,7 @@ export type ChannelConfig = {
 
 export const NOTIFICATION_CHANNELS: Record<NotificationType, ChannelConfig> = {
   message: {
-    id: "hanging360_message",
+    id: "hanging360_message_v3",
     name: "Mensajes",
     description: "Nuevos mensajes de clientes",
     importance: 5,
@@ -34,7 +34,7 @@ export const NOTIFICATION_CHANNELS: Record<NotificationType, ChannelConfig> = {
     lights: true,
   },
   whatsapp: {
-    id: "hanging360_whatsapp",
+    id: "hanging360_whatsapp_v3",
     name: "WhatsApp",
     description: "Mensajes entrantes de WhatsApp",
     importance: 5,
@@ -45,7 +45,7 @@ export const NOTIFICATION_CHANNELS: Record<NotificationType, ChannelConfig> = {
     lights: true,
   },
   appointment_new: {
-    id: "hanging360_appointment_new",
+    id: "hanging360_appointment_new_v3",
     name: "Nueva cita",
     description: "Se ha creado una cita nueva",
     importance: 5,
@@ -56,18 +56,18 @@ export const NOTIFICATION_CHANNELS: Record<NotificationType, ChannelConfig> = {
     lights: true,
   },
   appointment_update: {
-    id: "hanging360_appointment_update",
+    id: "hanging360_appointment_update_v3",
     name: "Cambios de cita",
     description: "Actualizaciones o cancelaciones de citas",
     importance: 4,
     visibility: 1,
-    soundAndroid: "default",
-    soundIOS: "default",
+    soundAndroid: "appointment",
+    soundIOS: "appointment.caf",
     vibration: true,
     lights: false,
   },
   payment: {
-    id: "hanging360_payment",
+    id: "hanging360_payment_v3",
     name: "Pagos",
     description: "Confirmaciones y recibos de pago",
     importance: 5,
@@ -78,13 +78,13 @@ export const NOTIFICATION_CHANNELS: Record<NotificationType, ChannelConfig> = {
     lights: true,
   },
   update: {
-    id: "hanging360_update",
+    id: "hanging360_update_v3",
     name: "Actualizaciones",
     description: "Novedades y avisos generales",
     importance: 3,
     visibility: 1,
-    soundAndroid: "default",
-    soundIOS: "default",
+    soundAndroid: "update",
+    soundIOS: "update.caf",
     vibration: false,
     lights: false,
   },
@@ -93,7 +93,7 @@ export const NOTIFICATION_CHANNELS: Record<NotificationType, ChannelConfig> = {
 export const ALL_CHANNELS: ChannelConfig[] = Object.values(NOTIFICATION_CHANNELS);
 
 // Canal genérico legacy (retro-compat)
-export const LEGACY_CHANNEL_ID = "hanging360_alerts_v2";
+export const LEGACY_CHANNEL_ID = "hanging360_alerts_v3";
 
 export function resolveTypeFromPayload(payload: any): NotificationType {
   const raw =
@@ -102,15 +102,26 @@ export function resolveTypeFromPayload(payload: any): NotificationType {
     payload?.data?.channel_id ??
     payload?.type ??
     "update";
-  const key = String(raw).toLowerCase();
+  const key = String(raw).toLowerCase().trim();
   if (key in NOTIFICATION_CHANNELS) return key as NotificationType;
-  // heurística: si viene un channel_id completo, encontrar por id
-  const match = ALL_CHANNELS.find((c) => c.id === key);
-  if (match) {
-    const found = (Object.keys(NOTIFICATION_CHANNELS) as NotificationType[]).find(
-      (k) => NOTIFICATION_CHANNELS[k].id === match.id,
-    );
-    if (found) return found;
-  }
+  const aliases: Record<string, NotificationType> = {
+    appointment: "appointment_new",
+    new_appointment: "appointment_new",
+    appointment_created: "appointment_new",
+    appointment_changed: "appointment_update",
+    appointment_cancelled: "appointment_update",
+    messages: "message",
+    payments: "payment",
+    system: "update",
+    general: "update",
+  };
+  if (aliases[key]) return aliases[key];
+
+  // Aceptar IDs actuales y anteriores enviados por el backend.
+  const channelKey = key.replace(/_v\d+$/, "");
+  const found = (Object.keys(NOTIFICATION_CHANNELS) as NotificationType[]).find(
+    (type) => NOTIFICATION_CHANNELS[type].id.replace(/_v\d+$/, "") === channelKey,
+  );
+  if (found) return found;
   return "update";
 }

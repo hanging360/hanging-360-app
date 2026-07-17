@@ -67,6 +67,18 @@ workflows:
             android/capacitor.settings.gradle android/app/capacitor.build.gradle \
             || (echo "Missing notification plugin refs in gradle" && exit 1)
 
+      - name: Verify notification sounds and Android package
+        script: |
+          for sound in message whatsapp appointment payment update; do
+            test -s "android/app/src/main/res/raw/$sound.mp3" \
+              || (echo "Missing Android sound: $sound.mp3" && exit 1)
+          done
+          grep -q '^package com.hanging360.app;' \
+            android/app/src/main/java/com/hanging360/app/MainActivity.java \
+            || (echo "MainActivity package does not match applicationId" && exit 1)
+          grep -q 'hanging360_alerts_v3' android/app/src/main/AndroidManifest.xml \
+            || (echo "Android default notification channel is stale" && exit 1)
+
       - name: Verify keystore is available
         script: |
           if [ -z "$CM_KEYSTORE_PATH" ] || [ ! -f "$CM_KEYSTORE_PATH" ]; then
@@ -240,6 +252,12 @@ workflows:
           cd ios/App
           grep -E "CapacitorPushNotifications|CapacitorLocalNotifications|CapacitorApp|CapawesomeCapacitorBadge" CapApp-SPM/Package.swift \
             || (echo "Missing notification plugins in Package.swift" && exit 1)
+          for sound in message whatsapp appointment payment update; do
+            test -s "App/$sound.caf" \
+              || (echo "Missing iOS sound: $sound.caf" && exit 1)
+            grep -q "$sound.caf in Resources" App.xcodeproj/project.pbxproj \
+              || (echo "iOS sound not in Copy Bundle Resources: $sound.caf" && exit 1)
+          done
           xcodebuild -resolvePackageDependencies -project App.xcodeproj -scheme App || true
           cd ../..
 

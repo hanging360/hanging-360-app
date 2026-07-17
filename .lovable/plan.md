@@ -1,39 +1,35 @@
 ## Objetivo
-Empaquetar los 5 sonidos subidos (`message.mp3`, `whatsapp.mp3`, `appointment.mp3`, `payment.mp3`, `update.mp3`) para que estén disponibles tanto en el web app (via `public/sounds/`) como en el shell nativo Capacitor (Android + iOS).
+Evitar que la app pida iniciar sesión en cada apertura y restaurar los sonidos personalizados de mensajes, WhatsApp, citas, pagos y actualizaciones.
 
-## Cambios
+## Estado confirmado
+- El portal remoto ya configura Supabase con `persistSession: true`, pero su formulario de login no tiene `autocomplete="username"` ni `autocomplete="current-password"`.
+- El email solo se guarda después de crear una cuenta, no después de un login exitoso.
+- Los cinco sonidos existen en `public/sounds`, Android `res/raw` e iOS, y los `.caf` están incluidos en Copy Bundle Resources.
+- Android crea canales con sonidos personalizados, pero reutiliza IDs existentes; Android no permite cambiar el sonido de un canal ya creado, por lo que instalaciones que ya tenían esos canales pueden conservar una configuración anterior silenciosa/default.
+- iOS muestra sonido en foreground, pero el sonido personalizado cuando está cerrada depende de que el backend envíe el nombre `.caf` correcto dentro de `aps.sound`.
 
-1. **Web app / puente de audio** — copiar los 5 mp3 a `public/sounds/`
-   - `public/sounds/message.mp3`
-   - `public/sounds/whatsapp.mp3`
-   - `public/sounds/appointment.mp3`
-   - `public/sounds/payment.mp3`
-   - `public/sounds/update.mp3`
-   
-   Sirven para el botón "Probar sonido" en la web y para reproducirse dentro del WebView vía `new Audio("/sounds/<name>.mp3")`.
+## Implementación
+1. **Persistencia real del login**
+   - Corregir el formulario del portal remoto para usar nombres y atributos estándar de Password Manager: `name`, `autocomplete="username"` y `autocomplete="current-password"`.
+   - Guardar el email también después de un login exitoso.
+   - Validar/restaurar la sesión existente antes de redirigir a `/login`, evitando expulsar al usuario durante la carga o renovación del token.
+   - Mantener la contraseña exclusivamente en el gestor seguro de iOS/Android; no guardarla en `localStorage` ni en Preferences.
 
-2. **Android — canales de notificación**
-   - Copiar los 5 mp3 a `android/app/src/main/res/raw/` (mismos nombres, minúsculas, sin espacios — ya coinciden con los `soundAndroid` de `src/config/notificationChannels.ts`).
-   - Con esto, cuando FCM envíe `channel_id: hanging360_payment` (etc.), el sistema reproducirá el sonido custom incluso con la app cerrada.
-   - No hace falta tocar `MainActivity.java`: los canales se crean vía el puente `HANGING360_REGISTER_CHANNELS` y ya leen `soundAndroid` del catálogo.
+2. **Restaurar sonidos Android**
+   - Versionar los IDs de canales personalizados para obligar a Android a crear canales nuevos con los MP3 actuales.
+   - Mantener importancia alta, vibración, badge, lock-screen visibility y el canal correcto por tipo.
+   - Ajustar la resolución del payload para aceptar tanto `type` como `channel_id/category` provenientes del backend.
+   - Evitar duplicar una notificación foreground si FCM ya la presentó.
 
-3. **iOS — sonidos APNs**
-   - iOS exige formato `.caf` (Core Audio Format) empaquetado en el bundle para que suenen con la app cerrada. Convertir los 5 mp3 a caf con `afconvert`/`ffmpeg`:
-     - `message.caf`, `whatsapp.caf`, `appointment.caf`, `payment.caf`, `update.caf`
-   - Copiarlos a `ios/App/App/` (junto a `Info.plist`) y añadir los 5 archivos al target Xcode "Copy Bundle Resources". Como Codemagic compila con `xcodebuild`, hay que registrarlos en `ios/App/App.xcodeproj/project.pbxproj` en `PBXBuildFile` + `PBXResourcesBuildPhase` para que se copien en el .ipa.
-   - Los nombres ya coinciden con `soundIOS` del catálogo (`message.caf`, etc.).
+3. **Restaurar sonidos iOS**
+   - Registrar las categorías/tipos y conservar banner, list, badge y sound en foreground.
+   - Mapear cada tipo al `.caf` empaquetado para pruebas locales.
+   - Documentar/ajustar el contrato obligatorio del backend: `message.caf`, `whatsapp.caf`, `appointment.caf`, `payment.caf` y `update.caf` en `aps.sound`.
 
-4. **Verificación**
-   - `NOTIFICATIONS_SETUP.md` ya documenta esta estructura; no requiere cambios.
-   - Tras el merge: `git pull && npx cap sync && codemagic build`.
+4. **Pruebas funcionales**
+   - Verificar login, cierre y reapertura de la app sin volver a pedir credenciales.
+   - Probar cada tipo de sonido mediante notificación local.
+   - Verificar payloads de foreground, background y app cerrada para Android/iOS, además de badge y banner.
 
-## Detalles técnicos
-
-- Los mp3 originales no se suben como Lovable Assets porque Android/iOS necesitan los binarios reales dentro del bundle nativo (no una URL CDN).
-- `public/sounds/` sí se sirve por Vite y por el web app remoto; puede referenciarse desde el iframe con `HTMLAudioElement`.
-- Para la conversión iOS usaré `ffmpeg -i x.mp3 -c:a pcm_s16le -ar 44100 x.caf` (formato IMA4/PCM aceptado por APNs). Duración recomendada ≤ 30s.
-- Edición del `project.pbxproj`: añadir 5 entradas `PBXFileReference` (lastKnownFileType `file.caf`), 5 `PBXBuildFile` con `fileRef`, incluir los 5 `PBXBuildFile` UUIDs en la `PBXResourcesBuildPhase` del target `App`, y agregar los 5 `PBXFileReference` al grupo `App`.
-
-## Fuera de alcance
-- Cambios en el web app remoto (`tech.hanging360.com`) — ya lo cubre el otro proyecto.
-- Cambios en el catálogo `notificationChannels.ts` (los nombres ya matchean).
+## Entrega nativa
+Tras los cambios: `git pull`, `npm install`, `npm run build`, `npx cap sync`, y generar nuevos AAB/IPA en Codemagic; los binarios instalados anteriormente no recibirán estos cambios nativos automáticamente.
