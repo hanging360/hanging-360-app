@@ -70,8 +70,8 @@ Este documento resume la configuración de push + local notifications con **badg
 ## Codemagic
 - **iOS workflow** `capacitor_ios_release`:
   - `MARKETING_VERSION` → `0.4`.
-  - `pod install --repo-update` para captar los nuevos specs.
-  - Paso `Verify notification plugins` que falla si faltan pods.
+  - El proyecto iOS usa **Swift Package Manager** (no CocoaPods). Para añadir un plugin nativo hay que editar `ios/App/CapApp-SPM/Package.swift` (agregar `.package` en `dependencies` y `.product` en el target) y luego correr `npx cap sync ios`.
+  - Paso `Verify notification plugins` que valida que los 4 paquetes estén declarados en `Package.swift` y resuelve dependencias SPM con `xcodebuild -resolvePackageDependencies`.
 - **Android workflow nuevo** `capacitor_android_release`:
   - Requiere subir un keystore en Codemagic → Settings → Code signing con referencia `hanging360_keystore`.
   - Genera `.aab` + `.apk` firmados.
