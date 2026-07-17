@@ -1,79 +1,68 @@
-## Problema
+## Verificación
 
-Google Play rechaza el `.aab` con "All uploaded bundles must be signed." El bloque `android_signing: [hanging360_keystore_v2]` de Codemagic pone el keystore disponible en el runner y expone las variables `CM_KEYSTORE_PATH / CM_KEYSTORE_PASSWORD / CM_KEY_ALIAS / CM_KEY_PASSWORD`, pero **no** modifica `build.gradle`. Como `android/app/build.gradle` no tiene `signingConfigs.release` ni `buildTypes.release.signingConfig`, Gradle produce:
+Ejecuté `keytool` sobre el `.keystore` que subiste. Resultado:
 
-- `app-release.aab` sin firmar (lo que Play rechaza)
-- `app-release-unsigned.apk` (por eso también salía "unsigned")
+- **Alias real:** `hanging360-key` (no `Hanging360` — importante, si pones el alias mal la firma falla)
+- **Store password:** `@Cr043079` ✓
+- **SHA1:** `19:8C:5D:7C:08:5A:7E:BD:54:BE:22:E1:9D:E9:72:65:6E:02:DD:E0` ✓ **coincide con lo que Play exige**
+- Owner: `CN=Hanging360, OU=Hanging360, O=Hanging360, L=Miami, ST=Florida, C=US`
+- Válido hasta 2053
 
-## Solución
+Este ES el keystore correcto.
 
-Editar únicamente `android/app/build.gradle` para leer el keystore desde las variables de entorno de Codemagic y aplicarlo al build type `release`.
+## Pasos
 
-```gradle
-android {
-    namespace = "com.hanging360.tech"
-    compileSdk = rootProject.ext.compileSdkVersion
-    defaultConfig { ... }
+### 1. Subir el keystore a Codemagic (lo haces tú)
 
-    signingConfigs {
-        release {
-            def ksPath = System.getenv("CM_KEYSTORE_PATH")
-            if (ksPath) {
-                storeFile file(ksPath)
-                storePassword System.getenv("CM_KEYSTORE_PASSWORD")
-                keyAlias      System.getenv("CM_KEY_ALIAS")
-                keyPassword   System.getenv("CM_KEY_PASSWORD")
-            }
-        }
-    }
+Codemagic → **Teams → Code signing identities → Android keystores → Add keystore**:
 
-    buildTypes {
-        release {
-            minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
-            if (System.getenv("CM_KEYSTORE_PATH")) {
-                signingConfig signingConfigs.release
-            }
-        }
-    }
-}
-```
+- **Reference name:** `hanging360_keystore_original`
+- **Upload keystore file:** `hanging360-release-key.keystore` (el mismo que subiste aquí)
+- **Keystore password:** `@Cr043079`
+- **Key alias:** `hanging360-key`  ← ojo, con guion, minúsculas
+- **Key password:** `@Cr043079` (si Codemagic la pide y `hanging360` no funciona, prueba con la del store; los keystores nuevos suelen usar la misma para ambas)
 
-Y añadir un paso de verificación en `codemagic.yaml` (workflow `capacitor_android_release`) justo antes de `Build signed AAB + APK`, para fallar temprano si el keystore no está montado:
+Codemagic mostrará la SHA1 al guardar. Debe decir `19:8C:5D:7C:…`. Si sale otra huella no continúes.
+
+### 2. Cambios en el repo (yo, en build mode)
+
+En `codemagic.yaml`, workflow `capacitor_android_release`:
 
 ```yaml
-- name: Verify keystore is available
-  script: |
-    if [ -z "$CM_KEYSTORE_PATH" ] || [ ! -f "$CM_KEYSTORE_PATH" ]; then
-      echo "ERROR: CM_KEYSTORE_PATH not set — hanging360_keystore_v2 no adjunto al workflow"
-      exit 1
-    fi
-    echo "Keystore OK en $CM_KEYSTORE_PATH (alias=$CM_KEY_ALIAS)"
+android_signing:
+  - hanging360_keystore_original   # antes: hanging360_keystore_v2
 ```
 
-Y añadir una comprobación post-build que confirme que el `.aab` está firmado (si no lo está, aborta el workflow para no subir un artefacto malo):
+Y añadir, justo después de "Verify keystore is available":
 
 ```yaml
-- name: Verify AAB is signed
+- name: Verify keystore fingerprint
   script: |
-    AAB=$(ls android/app/build/outputs/bundle/release/*.aab | head -n1)
-    unzip -p "$AAB" META-INF/MANIFEST.MF > /dev/null || (echo "AAB corrupto" && exit 1)
-    if ! unzip -l "$AAB" | grep -Eq "META-INF/.*\.(RSA|EC|DSA)"; then
-      echo "ERROR: AAB SIN FIRMAR"
-      exit 1
-    fi
-    echo "AAB firmado correctamente."
+    EXPECTED="19:8C:5D:7C:08:5A:7E:BD:54:BE:22:E1:9D:E9:72:65:6E:02:DD:E0"
+    ACTUAL=$(keytool -list -v -keystore "$CM_KEYSTORE_PATH" \
+      -storepass "$CM_KEYSTORE_PASSWORD" -alias "$CM_KEY_ALIAS" \
+      | grep -i "SHA1:" | head -n1 | awk '{print $2}')
+    echo "Expected: $EXPECTED"
+    echo "Actual:   $ACTUAL"
+    [ "$ACTUAL" = "$EXPECTED" ] || { echo "Fingerprint mismatch — Play rechazará el AAB"; exit 1; }
 ```
+
+Esto hace que si alguna vez alguien vuelve a adjuntar el keystore equivocado, el build falle en 5 segundos con un mensaje claro en vez de tras 15 minutos de compilación.
+
+### 3. Confirmación pendiente sobre `applicationId`
+
+La versión 3 publicada en Play, ¿tiene `applicationId` `com.hanging360.app` o `com.hanging360.tech`? Play empareja **huella + package name**; si el package no coincide también rechaza. El workflow actual fuerza `com.hanging360.app`. Si Play la registró con `.tech`, hay que quitar ese `sed` de reemplazo. **Míralo en Play Console → App integrity → App signing (o en el listado de la app) y confírmame.**
+
+### 4. Higiene
+
+- Compartiste el keystore y la contraseña en chat. Cuando termine este flujo, guarda el `.keystore` en un lugar seguro cifrado (1Password / Bitwarden), no en el repo ni en el chat.
+- No borres `hanging360_keystore_v2` de Codemagic todavía — déjalo hasta confirmar que el nuevo `.aab` sube a Play sin error.
 
 ## Fuera de alcance
 
-- No se cambia el keystore, `applicationId`, versiones, ni el flujo iOS.
-- No se toca `package.json` ni Capacitor.
+- No toco iOS, ni `build.gradle` (ya lee del env de Codemagic), ni versiones, ni el flujo web.
 
-## Resultado esperado
+## Qué necesito antes de darle a build
 
-En el próximo run del workflow Android:
-
-- `android/app/build/outputs/bundle/release/app-release.aab` firmado con `hanging360_keystore_v2` → aceptado por Play Console.
-- `android/app/build/outputs/apk/release/app-release.apk` (ya sin sufijo `-unsigned`) firmado con el mismo keystore.
-- Si por cualquier motivo el keystore no está adjunto al workflow, el build falla en el paso de verificación en vez de generar un `.aab` inválido.
+1. "Subido a Codemagic como `hanging360_keystore_original`, SHA1 muestra `19:8C:…`" ✓
+2. `applicationId` real en Play (`.app` o `.tech`) ✓

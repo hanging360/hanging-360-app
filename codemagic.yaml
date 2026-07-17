@@ -18,7 +18,7 @@ workflows:
         PACKAGE_NAME: "com.hanging360.app"
         VERSION_NAME: "4"
       android_signing:
-        - hanging360_keystore_v2
+        - hanging360_keystore_original
 
     cache:
       cache_paths:
@@ -68,6 +68,19 @@ workflows:
             exit 1
           fi
           echo "Keystore OK en $CM_KEYSTORE_PATH (alias=$CM_KEY_ALIAS)"
+
+      - name: Verify keystore fingerprint
+        script: |
+          EXPECTED="19:8C:5D:7C:08:5A:7E:BD:54:BE:22:E1:9D:E9:72:65:6E:02:DD:E0"
+          ACTUAL=$(keytool -list -v -keystore "$CM_KEYSTORE_PATH" \
+            -storepass "$CM_KEYSTORE_PASSWORD" -alias "$CM_KEY_ALIAS" \
+            | grep -i "SHA1:" | head -n1 | awk '{print $2}')
+          echo "Expected: $EXPECTED"
+          echo "Actual:   $ACTUAL"
+          if [ "$ACTUAL" != "$EXPECTED" ]; then
+            echo "ERROR: keystore fingerprint mismatch — Play rechazará el AAB"
+            exit 1
+          fi
 
       - name: Build signed AAB + APK
         script: |
