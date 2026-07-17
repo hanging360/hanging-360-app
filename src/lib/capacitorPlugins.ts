@@ -143,3 +143,28 @@ export const Badge: BadgePlugin = {
   clear: () => resolvePlugin<BadgePlugin>("Badge", badgeFallback).clear(),
   isSupported: () => resolvePlugin<BadgePlugin>("Badge", badgeFallback).isSupported(),
 };
+
+// ---------------- NativeSettings (capacitor-native-settings) ----------------
+// Opciones válidas — mantenemos solo las que usamos.
+// AndroidSettings.AppNotification / IOSSettings.App
+type NativeSettingsPlugin = {
+  open: (options: { optionAndroid?: string; optionIOS?: string }) => Promise<{ status: boolean }>;
+};
+
+const nativeSettingsFallback: NativeSettingsPlugin = {
+  open: async () => ({ status: false }),
+};
+
+export const NativeSettings: NativeSettingsPlugin = {
+  open: (options) => resolvePlugin<NativeSettingsPlugin>("NativeSettings", nativeSettingsFallback).open(options),
+};
+
+// Constantes que expone el plugin en runtime; los duplicamos aquí para no depender del import.
+export const AndroidSettings = {
+  AppNotification: "appNotification",
+  App: "application",
+} as const;
+
+export const IOSSettings = {
+  App: "application",
+} as const;
