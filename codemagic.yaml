@@ -5,7 +5,6 @@ workflows:
 
     environment:
       xcode: latest
-      cocoapods: default
       ios_signing:
         distribution_type: app_store
         bundle_identifier: com.hanging360.app
@@ -19,9 +18,7 @@ workflows:
     cache:
       cache_paths:
         - ~/.npm
-        - ~/Library/Caches/CocoaPods
-        - ~/.cocoapods/repos
-        - ios/App/Pods
+        - ~/Library/Developer/Xcode/DerivedData/**/SourcePackages
 
     scripts:
       - name: Validate toolchain
@@ -29,7 +26,6 @@ workflows:
           node -v
           npm -v
           xcodebuild -version
-          pod --version
 
       - name: Validate signing assets
         script: |
@@ -50,16 +46,13 @@ workflows:
         script: |
           npx cap sync ios
 
-      - name: Install CocoaPods dependencies
-        script: |
-          cd ios/App
-          pod install --repo-update
-          cd ../..
-
       - name: Verify notification plugins
         script: |
-          ls ios/App/Pods | grep -E "CapacitorPushNotifications|CapacitorLocalNotifications|CapacitorApp|CapawesomeCapacitorBadge" \
-            || (echo "Missing notification pods" && exit 1)
+          cd ios/App
+          grep -E "CapacitorPushNotifications|CapacitorLocalNotifications|CapacitorApp|CapawesomeCapacitorBadge" CapApp-SPM/Package.swift \
+            || (echo "Missing notification plugins in Package.swift" && exit 1)
+          xcodebuild -resolvePackageDependencies -project App.xcodeproj -scheme App || true
+          cd ../..
 
       - name: Force Bundle ID and version
         script: |
