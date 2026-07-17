@@ -13,7 +13,7 @@ workflows:
 
     environment:
       java: 21
-      node: 20
+      node: 22
       vars:
         PACKAGE_NAME: "com.hanging360.app"
         VERSION_NAME: "4"
@@ -106,6 +106,7 @@ workflows:
 
     environment:
       xcode: latest
+      node: 22
       ios_signing:
         distribution_type: app_store
         bundle_identifier: com.hanging360.app
