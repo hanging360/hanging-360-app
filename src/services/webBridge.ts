@@ -45,15 +45,22 @@ export async function registerAllChannels() {
   // Android freezes a channel's sound after first creation. Remove the old,
   // potentially silent channels once, then recreate aliases for older backend
   // payloads while all senders migrate to the v3 IDs.
-  const migrationKey = "hanging360_notification_channels_v3";
+  const migrationKey = "hanging360_notification_channels_v4";
   const legacyIds = [
     "hanging360_alerts_v2",
+    "hanging360_alerts_v3",
     "hanging360_message",
+    "hanging360_message_v3",
     "hanging360_whatsapp",
+    "hanging360_whatsapp_v3",
     "hanging360_appointment_new",
+    "hanging360_appointment_new_v3",
     "hanging360_appointment_update",
+    "hanging360_appointment_update_v3",
     "hanging360_payment",
+    "hanging360_payment_v3",
     "hanging360_update",
+    "hanging360_update_v3",
   ];
   if (window.localStorage.getItem(migrationKey) !== "done") {
     for (const id of legacyIds) {
@@ -63,7 +70,7 @@ export async function registerAllChannels() {
 
   const compatibilityChannels = ALL_CHANNELS.map((channel) => ({
     ...channel,
-    id: channel.id.replace(/_v3$/, ""),
+    id: channel.id.replace(/_v4$/, ""),
     name: `${channel.name} (compatibilidad)`,
   }));
 

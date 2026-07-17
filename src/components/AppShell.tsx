@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { SplashScreen, StatusBar, isNativePlatform, getPlatform } from "../lib/capacitorPlugins";
+import { SplashScreen, StatusBar, Keyboard, isNativePlatform, getPlatform } from "../lib/capacitorPlugins";
 import { initPushNotifications, postStoredPushTokenToWebApp, clearBadge, setBadgeCount } from "../services/pushNotifications";
 import { installWebBridge, setBridgeTarget } from "../services/webBridge";
 
@@ -65,12 +65,13 @@ export default function AppShell() {
     if (!isNative) return;
 
     let frame = 0;
+    let keyboardOffset = 0;
 
     const syncViewportSize = () => {
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
         const width = Math.floor(window.innerWidth);
-        const height = Math.floor(window.innerHeight);
+        const height = Math.max(0, Math.floor(window.innerHeight) - keyboardOffset);
 
         document.documentElement.style.setProperty("--app-width", `${width}px`);
         document.documentElement.style.setProperty("--app-height", `${height}px`);
@@ -83,14 +84,27 @@ export default function AppShell() {
     window.visualViewport?.addEventListener("resize", syncViewportSize);
     window.visualViewport?.addEventListener("scroll", syncViewportSize);
 
+    const handles: Array<{ remove: () => Promise<void> }> = [];
+    if (isIOS) {
+      Keyboard.addListener("keyboardWillShow", (info) => {
+        keyboardOffset = info?.keyboardHeight ?? 0;
+        syncViewportSize();
+      }).then((h) => handles.push(h)).catch(() => {});
+      Keyboard.addListener("keyboardWillHide", () => {
+        keyboardOffset = 0;
+        syncViewportSize();
+      }).then((h) => handles.push(h)).catch(() => {});
+    }
+
     return () => {
       cancelAnimationFrame(frame);
       window.removeEventListener("resize", syncViewportSize);
       window.removeEventListener("orientationchange", syncViewportSize);
       window.visualViewport?.removeEventListener("resize", syncViewportSize);
       window.visualViewport?.removeEventListener("scroll", syncViewportSize);
+      handles.forEach((h) => { h.remove().catch(() => {}); });
     };
-  }, [isNative]);
+  }, [isNative, isIOS]);
 
   const handleIframeError = useCallback(() => {
     if (retryCount.current < MAX_RETRIES) {
