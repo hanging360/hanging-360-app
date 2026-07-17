@@ -1,27 +1,40 @@
-## Plan
+## Situación
 
-Forzar el nombre del provisioning profile en `codemagic.yaml` para eliminar ambigüedad al firmar.
+✅ El archive completó bien: firmado con `iPhone Distribution: Cesar Castellanos` y provisioning `Hanging360 App Store`. El problema del `aps-environment` ya está resuelto.
 
-### Cambio en `codemagic.yaml` (workflow `capacitor_ios_release`)
+❌ El único fallo restante está en el paso de exportar IPA:
 
-1. **Añadir variable de entorno** `PROVISIONING_PROFILE_NAME: "Hanging360 App Store"` en el bloque `vars:`.
-   - ⚠️ Necesito confirmar el nombre exacto que dejaste tras la limpieza en Apple Developer. Opciones que teníamos: `Hanging360`, `Hanging360 App Store`, `Hanging360 App Store 1/2`. Dime cuál conservaste.
+```
+xcode-project: error: unrecognized arguments: --archive-path ...
+```
 
-2. **Modificar el paso `Build signed IPA`** — en la invocación de `xcodebuild archive`, añadir:
-   ```
-   PROVISIONING_PROFILE_SPECIFIER="$PROVISIONING_PROFILE_NAME" \
-   CODE_SIGN_IDENTITY="iPhone Distribution" \
-   ```
+El CLI de Codemagic (`xcode-project build-ipa`) usa el flag `--archive` (o `--archive-directory`), no `--archive-path`.
 
-3. **Añadir al paso `Show code signing settings`** un `echo` del `PROVISIONING_PROFILE_NAME` para verificar en el log antes del archive.
+## Cambio único en `codemagic.yaml`
 
-### Qué NO cambia
+En el paso `Build signed IPA`, reemplazar:
 
-- Nada de `Package.swift`, entitlements, `Info.plist`, `AppDelegate.swift`, código de app, ni workflow Android.
-- Sin cambios en la parte de descarga de profiles (sigue funcionando con App Store Connect API key).
+```
+xcode-project build-ipa \
+  --archive-path "$ARCHIVE_PATH" \
+  --verbose
+```
 
-### Después
+por:
 
-Correr `capacitor_ios_release`. En el paso `Show code signing settings` debe verse el `PROVISIONING_PROFILE_SPECIFIER` = nombre elegido, y el archive debe completar sin error de `aps-environment`.
+```
+xcode-project build-ipa \
+  --archive "$ARCHIVE_PATH" \
+  --verbose
+```
 
-**Confirma qué profile dejaste activo** para escribir el nombre exacto en el YAML.
+## Qué NO cambia
+
+- Nada del bloque de `xcodebuild archive` (ya funciona).
+- Nada de `Package.swift`, entitlements, `Info.plist`, `AppDelegate.swift`.
+- Nada del workflow Android.
+- Nada de firma/certificados/profiles.
+
+## Después
+
+Re-lanzar `capacitor_ios_release`. El archive volverá a pasar y esta vez el `build-ipa` debe generar el `.ipa` en `build/ios/ipa/`.
