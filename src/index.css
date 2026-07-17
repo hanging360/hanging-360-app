@@ -267,15 +267,11 @@ html, body, #root {
   max-width: 100%;
   max-height: 100%;
   border: none;
-  background: #ffffff;
+  background: transparent;
   -webkit-overflow-scrolling: touch;
-  /* Apple Guideline 4: respetar safe areas en iOS para que los controles
-     del portal no queden debajo del Dynamic Island / notch / home indicator. */
-  padding-top: env(safe-area-inset-top);
-  padding-bottom: env(safe-area-inset-bottom);
-  padding-left: env(safe-area-inset-left);
-  padding-right: env(safe-area-inset-right);
-  box-sizing: border-box;
+  /* No paddings: el safe-area lo cubre .webview-screen (fondo). Sin padding
+     evitamos la franja blanca al abrir el teclado; el WebView se redimensiona
+     con @capacitor/keyboard (resize: native). */
 }
 
 /* En iPad, centrar el contenido con un ancho máximo cómodo. */

@@ -180,3 +180,25 @@ export const AndroidSettings = {
 export const IOSSettings = {
   App: "application",
 } as const;
+
+// ---------------- Keyboard (@capacitor/keyboard) ----------------
+type KeyboardInfo = { keyboardHeight: number };
+type KeyboardPlugin = {
+  addListener: (
+    eventName: "keyboardWillShow" | "keyboardDidShow" | "keyboardWillHide" | "keyboardDidHide",
+    listenerFunc: (info: KeyboardInfo) => void,
+  ) => Promise<PluginListenerHandle>;
+  setResizeMode?: (options: { mode: "none" | "native" | "body" | "ionic" }) => Promise<void>;
+};
+
+const keyboardFallback: KeyboardPlugin = {
+  addListener: async () => listenerHandle,
+  setResizeMode: async () => {},
+};
+
+export const Keyboard: KeyboardPlugin = {
+  addListener: (eventName, listenerFunc) =>
+    resolvePlugin<KeyboardPlugin>("Keyboard", keyboardFallback).addListener(eventName, listenerFunc),
+  setResizeMode: (options) =>
+    resolvePlugin<KeyboardPlugin>("Keyboard", keyboardFallback).setResizeMode?.(options) ?? Promise.resolve(),
+};
