@@ -2,6 +2,6 @@
 <resources>
     <string name="app_name">Hanging360</string>
     <string name="title_activity_main">Hanging360</string>
-    <string name="package_name">com.hanging360.tech</string>
-    <string name="custom_url_scheme">com.hanging360.tech</string>
+    <string name="package_name">com.hanging360.app</string>
+    <string name="custom_url_scheme">com.hanging360.app</string>
 </resources>
