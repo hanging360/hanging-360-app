@@ -61,6 +61,14 @@ workflows:
             android/capacitor.settings.gradle android/app/capacitor.build.gradle \
             || (echo "Missing notification plugin refs in gradle" && exit 1)
 
+      - name: Verify keystore is available
+        script: |
+          if [ -z "$CM_KEYSTORE_PATH" ] || [ ! -f "$CM_KEYSTORE_PATH" ]; then
+            echo "ERROR: CM_KEYSTORE_PATH not set — hanging360_keystore_v2 no adjunto al workflow"
+            exit 1
+          fi
+          echo "Keystore OK en $CM_KEYSTORE_PATH (alias=$CM_KEY_ALIAS)"
+
       - name: Build signed AAB + APK
         script: |
           cd android
@@ -79,6 +87,16 @@ workflows:
             exit 1
           fi
           echo "AAB generated successfully."
+
+      - name: Verify AAB is signed
+        script: |
+          AAB=$(ls android/app/build/outputs/bundle/release/*.aab | head -n1)
+          unzip -p "$AAB" META-INF/MANIFEST.MF > /dev/null || (echo "AAB corrupto" && exit 1)
+          if ! unzip -l "$AAB" | grep -Eq "META-INF/.*\.(RSA|EC|DSA)"; then
+            echo "ERROR: AAB SIN FIRMAR"
+            exit 1
+          fi
+          echo "AAB firmado correctamente."
 
     artifacts:
       - android/app/build/outputs/**/*.aab
