@@ -14,7 +14,7 @@ workflows:
         XCODE_SCHEME: "App"
         BUNDLE_ID: "com.hanging360.app"
         DEVELOPMENT_TEAM: "C427U3735D"
-        MARKETING_VERSION: "0.3"
+        MARKETING_VERSION: "0.4"
 
     cache:
       cache_paths:
@@ -53,8 +53,13 @@ workflows:
       - name: Install CocoaPods dependencies
         script: |
           cd ios/App
-          pod install
+          pod install --repo-update
           cd ../..
+
+      - name: Verify notification plugins
+        script: |
+          ls ios/App/Pods | grep -E "CapacitorPushNotifications|CapacitorLocalNotifications|CapacitorApp|CapawesomeCapacitorBadge" \
+            || (echo "Missing notification pods" && exit 1)
 
       - name: Force Bundle ID and version
         script: |
@@ -95,6 +100,70 @@ workflows:
       - build/ios/ipa/*.ipa
       - /tmp/xcodebuild_logs/*.log
       - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.app
+
+    publishing:
+      email:
+        recipients:
+          - cubanito_com@yahoo.com
+        notify:
+          success: true
+          failure: true
+
+  capacitor_android_release:
+    name: Capacitor Android Release
+    max_build_duration: 120
+
+    environment:
+      java: 21
+      node: 20
+      vars:
+        PACKAGE_NAME: "com.hanging360.app"
+        VERSION_NAME: "0.4"
+      android_signing:
+        - hanging360_keystore
+
+    cache:
+      cache_paths:
+        - ~/.npm
+        - ~/.gradle/caches
+        - android/.gradle
+
+    scripts:
+      - name: Validate toolchain
+        script: |
+          node -v
+          npm -v
+          java -version
+
+      - name: Install JS dependencies
+        script: |
+          npm install --no-audit --no-fund --legacy-peer-deps
+
+      - name: Build web app
+        script: |
+          npm run build
+
+      - name: Sync Capacitor Android
+        script: |
+          npx cap sync android
+
+      - name: Verify notification plugins
+        script: |
+          grep -E "capacitor-push-notifications|capacitor-local-notifications|capacitor-app|capawesome.*badge" \
+            android/capacitor.settings.gradle android/app/capacitor.build.gradle \
+            || (echo "Missing notification plugin refs in gradle" && exit 1)
+
+      - name: Build signed AAB + APK
+        script: |
+          cd android
+          ./gradlew clean
+          ./gradlew :app:bundleRelease :app:assembleRelease \
+            -PversionName=$VERSION_NAME \
+            -PversionCode=$BUILD_NUMBER
+
+    artifacts:
+      - android/app/build/outputs/**/*.aab
+      - android/app/build/outputs/**/*.apk
 
     publishing:
       email:

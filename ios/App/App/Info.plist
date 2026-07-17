@@ -30,6 +30,8 @@
 	<string>Hanging360 necesita tu ubicación mientras usas la app para tracking y funciones del staff.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Hanging360 necesita acceso al micrófono para funciones de audio dentro de la app.</string>
+	<key>NSUserNotificationUsageDescription</key>
+	<string>Hanging360 usa notificaciones para avisarte sobre citas, mensajes y actualizaciones importantes.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>

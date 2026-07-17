@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { SplashScreen, StatusBar, isNativePlatform, getPlatform } from "../lib/capacitorPlugins";
-import { initPushNotifications, postStoredPushTokenToWebApp } from "../services/pushNotifications";
+import { initPushNotifications, postStoredPushTokenToWebApp, clearBadge, setBadgeCount } from "../services/pushNotifications";
 
 const CLIENT_URL = "https://tech.hanging360.com/my-appointment";
 
@@ -19,6 +19,7 @@ export default function AppShell() {
     if (isNative) {
       SplashScreen.hide().catch(() => {});
       initPushNotifications(iframeRef.current?.contentWindow);
+      clearBadge();
       if (isAndroid) {
         // Android: modo inmersivo (ocultar status/nav bar)
         StatusBar.hide().catch(() => {});
@@ -34,6 +35,29 @@ export default function AppShell() {
       window.location.assign(CLIENT_URL);
     }
   }, [isNative, isAndroid]);
+
+  // Limpiar badge al volver a foreground y escuchar mensajes del portal
+  useEffect(() => {
+    if (!isNative) return;
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") clearBadge();
+    };
+    const onMessage = (e: MessageEvent) => {
+      const data = e.data;
+      if (!data || typeof data !== "object") return;
+      if (data.type === "HANGING360_SET_BADGE" && typeof data.count === "number") {
+        setBadgeCount(data.count);
+      } else if (data.type === "HANGING360_CLEAR_BADGE") {
+        clearBadge();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("message", onMessage);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("message", onMessage);
+    };
+  }, [isNative]);
 
   useEffect(() => {
     if (!isNative) return;

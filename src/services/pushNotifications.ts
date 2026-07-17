@@ -1,15 +1,10 @@
-import { PushNotifications, isNativePlatform } from "../lib/capacitorPlugins";
+import { PushNotifications, LocalNotifications, Badge, isNativePlatform, getPlatform } from "../lib/capacitorPlugins";
 
 const CHANNEL_ID = "hanging360_alerts_v2";
 const CLIENT_ORIGIN = "https://tech.hanging360.com";
 
 type PushRegistrationToken = {
   value?: string;
-};
-
-const getPlatform = () => {
-  const capacitor = (window as Window & { Capacitor?: { getPlatform?: () => string } }).Capacitor;
-  return capacitor?.getPlatform?.() ?? "unknown";
 };
 
 const sendPushTokenToWebApp = (targetWindow: Window | null | undefined, token: string) => {
@@ -32,6 +27,17 @@ export const postStoredPushTokenToWebApp = (targetWindow: Window | null | undefi
   sendPushTokenToWebApp(targetWindow, token);
 };
 
+export async function clearBadge() {
+  try { await Badge.clear(); } catch {}
+}
+
+export async function setBadgeCount(count: number) {
+  try {
+    if (count <= 0) await Badge.clear();
+    else await Badge.set({ count });
+  } catch {}
+}
+
 export async function initPushNotifications(targetWindow?: Window | null) {
   if (!isNativePlatform()) return;
 
@@ -52,6 +58,9 @@ export async function initPushNotifications(targetWindow?: Window | null) {
   } catch (e) {
     console.warn("createChannel failed:", e);
   }
+
+  // LocalNotifications permission (used to surface foreground pushes on Android)
+  try { await LocalNotifications.requestPermissions(); } catch {}
 
   // Request permission
   const permResult = await PushNotifications.requestPermissions();
@@ -74,14 +83,35 @@ export async function initPushNotifications(targetWindow?: Window | null) {
     console.error("Push registration error:", error);
   });
 
-  // Listen for push received while app is in foreground
-  PushNotifications.addListener("pushNotificationReceived", (notification) => {
+  // Listen for push received while app is in foreground.
+  // iOS ya lo muestra vía presentationOptions; en Android hay que forzarlo con LocalNotifications.
+  PushNotifications.addListener("pushNotificationReceived", async (notification) => {
     console.log("Push received in foreground:", notification);
+    if (getPlatform() !== "android") return;
+    try {
+      const n = (notification ?? {}) as Record<string, any>;
+      const title = n.title ?? n.data?.title ?? "Hanging360";
+      const body = n.body ?? n.data?.body ?? "";
+      await LocalNotifications.schedule({
+        notifications: [{
+          id: Math.floor(Date.now() % 2147483647),
+          title,
+          body,
+          channelId: CHANNEL_ID,
+          smallIcon: "ic_stat_icon",
+          sound: "default",
+          extra: n.data ?? {},
+        }],
+      });
+    } catch (e) {
+      console.warn("LocalNotifications.schedule failed:", e);
+    }
   });
 
-  // Listen for push action (user tapped notification)
+  // Listen for push action (user tapped notification) — limpiar badge
   PushNotifications.addListener("pushNotificationActionPerformed", (action) => {
     console.log("Push action performed:", action);
+    clearBadge();
   });
 
   // Register with APNs / FCM after listeners are ready

@@ -3,6 +3,7 @@ package com.hanging360.tech;
 import android.Manifest;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
+import android.app.Notification;
 import android.content.pm.PackageManager;
 import android.media.AudioAttributes;
 import android.media.RingtoneManager;
@@ -78,6 +79,8 @@ public class MainActivity extends BridgeActivity {
         channel.setDescription("Avisos de citas y mensajes");
         channel.enableVibration(true);
         channel.enableLights(true);
+        channel.setShowBadge(true);
+        channel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
 
         Uri sound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
         AudioAttributes audio = new AudioAttributes.Builder()

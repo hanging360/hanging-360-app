@@ -106,3 +106,40 @@ export const PushNotifications: PushNotificationsPlugin = {
     addListener: async () => listenerHandle,
   }).addListener(eventName, listenerFunc),
 };
+
+// ---------------- Local Notifications ----------------
+type LocalNotificationsPlugin = {
+  schedule: (options: { notifications: Array<Record<string, unknown>> }) => Promise<unknown>;
+  requestPermissions: () => Promise<{ display: PermissionState }>;
+};
+
+const localNotificationsFallback: LocalNotificationsPlugin = {
+  schedule: async () => ({}),
+  requestPermissions: async () => ({ display: "denied" }),
+};
+
+export const LocalNotifications: LocalNotificationsPlugin = {
+  schedule: (options) =>
+    resolvePlugin<LocalNotificationsPlugin>("LocalNotifications", localNotificationsFallback).schedule(options),
+  requestPermissions: () =>
+    resolvePlugin<LocalNotificationsPlugin>("LocalNotifications", localNotificationsFallback).requestPermissions(),
+};
+
+// ---------------- Badge (@capawesome/capacitor-badge) ----------------
+type BadgePlugin = {
+  set: (options: { count: number }) => Promise<void>;
+  clear: () => Promise<void>;
+  isSupported: () => Promise<{ isSupported: boolean }>;
+};
+
+const badgeFallback: BadgePlugin = {
+  set: async () => {},
+  clear: async () => {},
+  isSupported: async () => ({ isSupported: false }),
+};
+
+export const Badge: BadgePlugin = {
+  set: (options) => resolvePlugin<BadgePlugin>("Badge", badgeFallback).set(options),
+  clear: () => resolvePlugin<BadgePlugin>("Badge", badgeFallback).clear(),
+  isSupported: () => resolvePlugin<BadgePlugin>("Badge", badgeFallback).isSupported(),
+};
