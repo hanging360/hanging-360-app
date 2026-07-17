@@ -103,15 +103,19 @@ async function handle(msg: InMsg) {
       const cfg = NOTIFICATION_CHANNELS[t] ?? NOTIFICATION_CHANNELS.message;
       try {
         await LocalNotifications.requestPermissions();
+        const platform = getPlatform();
         await LocalNotifications.schedule({
           notifications: [
             {
               id: Math.floor(Date.now() % 2147483647),
               title: `Prueba: ${cfg.name}`,
               body: "Notificación de prueba desde ajustes",
-              channelId: cfg.id,
+              channelId: platform === "android" ? cfg.id : undefined,
               smallIcon: "ic_stat_icon",
-              sound: cfg.soundAndroid === "default" ? undefined : `${cfg.soundAndroid}.mp3`,
+              sound: platform === "ios"
+                ? cfg.soundIOS
+                : `${cfg.soundAndroid}.mp3`,
+              extra: { type: t, category: t },
             },
           ],
         });

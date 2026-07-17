@@ -9,7 +9,16 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         // Foreground push presentation: banner + sonido + badge
-        UNUserNotificationCenter.current().delegate = self
+        let center = UNUserNotificationCenter.current()
+        center.delegate = self
+        let categoryIds = [
+            "message", "whatsapp", "appointment_new",
+            "appointment_update", "payment", "update"
+        ]
+        let categories = Set(categoryIds.map {
+            UNNotificationCategory(identifier: $0, actions: [], intentIdentifiers: [], options: [])
+        })
+        center.setNotificationCategories(categories)
         return true
     }
 

@@ -21,7 +21,7 @@ Este documento resume la configuración de push + local notifications con **badg
 **Sonidos custom (opcional)**: dropear `notification.caf` en el target Xcode y en el payload APNs mandar `"sound": "notification.caf"`.
 
 ## Android
-**Canal `hanging360_alerts_v2`** (MainActivity.java):
+**Canal `hanging360_alerts_v3`** (MainActivity.java):
 - `IMPORTANCE_HIGH` + `VISIBILITY_PUBLIC` (lock screen).
 - `setShowBadge(true)` (dot en launcher).
 - Sonido por defecto + vibración + luces.
@@ -46,8 +46,8 @@ Este documento resume la configuración de push + local notifications con **badg
   "notification": {
     "title": "Nueva cita",
     "body": "Tu cita ha sido confirmada",
-    "sound": "default",
-    "channel_id": "hanging360_alerts_v2"
+    "sound": "appointment",
+    "channel_id": "hanging360_appointment_new_v3"
   },
   "data": { "route": "/my-appointment" },
   "android": { "priority": "high" }
@@ -59,7 +59,7 @@ Este documento resume la configuración de push + local notifications con **badg
 {
   "aps": {
     "alert": { "title": "Nueva cita", "body": "Tu cita ha sido confirmada" },
-    "sound": "default",
+    "sound": "appointment.caf",
     "badge": 1,
     "content-available": 1
   },
@@ -133,19 +133,19 @@ window.parent.postMessage({ type: "HANGING360_OPEN_NOTIFICATION_SETTINGS", reque
 ### Tipos de notificación (canales Android / categorías iOS)
 | notificationType | Android channelId | iOS sound (payload APNs) | uso |
 |------------------|-------------------|--------------------------|-----|
-| `message`             | `hanging360_message`             | `message.caf`     | mensaje de cliente |
-| `whatsapp`            | `hanging360_whatsapp`            | `whatsapp.caf`    | mensaje entrante WhatsApp |
-| `appointment_new`     | `hanging360_appointment_new`     | `appointment.caf` | nueva cita creada |
-| `appointment_update`  | `hanging360_appointment_update`  | `default`         | update/cancel de cita |
-| `payment`             | `hanging360_payment`             | `payment.caf`     | pago recibido |
-| `update`              | `hanging360_update`              | `default`         | avisos generales |
+| `message`             | `hanging360_message_v3`             | `message.caf`     | mensaje de cliente |
+| `whatsapp`            | `hanging360_whatsapp_v3`            | `whatsapp.caf`    | mensaje entrante WhatsApp |
+| `appointment_new`     | `hanging360_appointment_new_v3`     | `appointment.caf` | nueva cita creada |
+| `appointment_update`  | `hanging360_appointment_update_v3`  | `appointment.caf` | update/cancel de cita |
+| `payment`             | `hanging360_payment_v3`              | `payment.caf`     | pago recibido |
+| `update`              | `hanging360_update_v3`               | `update.caf`      | avisos generales |
 
 ### Payload push por tipo
 **FCM (Android)** — el backend debe mandar `channel_id` y `type` en `data`:
 ```json
 {
   "to": "<token>",
-  "notification": { "title": "Nuevo pago", "body": "Recibiste $50", "channel_id": "hanging360_payment", "sound": "payment" },
+  "notification": { "title": "Nuevo pago", "body": "Recibiste $50", "channel_id": "hanging360_payment_v3", "sound": "payment" },
   "data": { "type": "payment", "route": "/payments", "badge": "3" },
   "android": { "priority": "high" }
 }

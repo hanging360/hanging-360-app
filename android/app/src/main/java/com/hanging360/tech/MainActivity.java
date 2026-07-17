@@ -25,7 +25,7 @@ import java.util.List;
 
 public class MainActivity extends BridgeActivity {
 
-    private static final String CHANNEL_ID = "hanging360_alerts_v2";
+    private static final String CHANNEL_ID = "hanging360_alerts_v3";
     private static final int RUNTIME_PERMISSIONS_REQUEST = 360;
 
     @Override
