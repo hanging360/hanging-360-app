@@ -116,7 +116,7 @@ workflows:
           fi
           echo "=== Archive OK — exporting IPA ==="
           xcode-project build-ipa \
-            --archive-path "$ARCHIVE_PATH" \
+            --archive "$ARCHIVE_PATH" \
             --verbose 2>&1 | tee /tmp/xcodebuild_logs/export.log
 
       - name: Print xcodebuild logs
