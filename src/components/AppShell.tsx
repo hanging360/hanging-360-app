@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { SplashScreen, StatusBar, isNativePlatform, getPlatform } from "../lib/capacitorPlugins";
 import { initPushNotifications, postStoredPushTokenToWebApp, clearBadge, setBadgeCount } from "../services/pushNotifications";
+import { installWebBridge, setBridgeTarget } from "../services/webBridge";
 
 const CLIENT_URL = "https://tech.hanging360.com/my-appointment";
 
@@ -19,6 +20,7 @@ export default function AppShell() {
     if (isNative) {
       SplashScreen.hide().catch(() => {});
       initPushNotifications(iframeRef.current?.contentWindow);
+      installWebBridge(iframeRef.current?.contentWindow);
       clearBadge();
       if (isAndroid) {
         // Android: modo inmersivo (ocultar status/nav bar)
@@ -101,6 +103,7 @@ export default function AppShell() {
     retryCount.current = 0;
     setIsLoaded(true);
     if (isNative) {
+      setBridgeTarget(iframeRef.current?.contentWindow);
       postStoredPushTokenToWebApp(iframeRef.current?.contentWindow);
     }
   }, [isNative]);

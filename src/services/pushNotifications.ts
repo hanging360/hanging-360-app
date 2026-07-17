@@ -1,6 +1,8 @@
 import { PushNotifications, LocalNotifications, Badge, isNativePlatform, getPlatform } from "../lib/capacitorPlugins";
+import { registerAllChannels } from "./webBridge";
+import { NOTIFICATION_CHANNELS, resolveTypeFromPayload, LEGACY_CHANNEL_ID } from "../config/notificationChannels";
 
-const CHANNEL_ID = "hanging360_alerts_v2";
+const CHANNEL_ID = LEGACY_CHANNEL_ID;
 const CLIENT_ORIGIN = "https://tech.hanging360.com";
 
 type PushRegistrationToken = {
@@ -59,6 +61,9 @@ export async function initPushNotifications(targetWindow?: Window | null) {
     console.warn("createChannel failed:", e);
   }
 
+  // Crear todos los canales por tipo (message, whatsapp, appointment, payment, update)
+  await registerAllChannels();
+
   // LocalNotifications permission (used to surface foreground pushes on Android)
   try { await LocalNotifications.requestPermissions(); } catch {}
 
@@ -87,9 +92,18 @@ export async function initPushNotifications(targetWindow?: Window | null) {
   // iOS ya lo muestra vía presentationOptions; en Android hay que forzarlo con LocalNotifications.
   PushNotifications.addListener("pushNotificationReceived", async (notification) => {
     console.log("Push received in foreground:", notification);
+    const n = (notification ?? {}) as Record<string, any>;
+
+    // Badge desde payload
+    const badgeCount = Number(n.data?.badge ?? n.badge ?? n.aps?.badge ?? 0);
+    if (badgeCount > 0) {
+      try { await Badge.set({ count: badgeCount }); } catch {}
+    }
+
     if (getPlatform() !== "android") return;
     try {
-      const n = (notification ?? {}) as Record<string, any>;
+      const type = resolveTypeFromPayload(n);
+      const cfg = NOTIFICATION_CHANNELS[type];
       const title = n.title ?? n.data?.title ?? "Hanging360";
       const body = n.body ?? n.data?.body ?? "";
       await LocalNotifications.schedule({
@@ -97,9 +111,9 @@ export async function initPushNotifications(targetWindow?: Window | null) {
           id: Math.floor(Date.now() % 2147483647),
           title,
           body,
-          channelId: CHANNEL_ID,
+          channelId: cfg.id,
           smallIcon: "ic_stat_icon",
-          sound: "default",
+          sound: cfg.soundAndroid === "default" ? undefined : `${cfg.soundAndroid}.mp3`,
           extra: n.data ?? {},
         }],
       });
