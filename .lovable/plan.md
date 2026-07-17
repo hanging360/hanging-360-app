@@ -1,39 +1,32 @@
+## Problema
 
-# Fix: iOS usa SPM, no CocoaPods
+`xcodebuild ... archive` sale con código 65 pero **no vemos el error real** en el log. El paso "Print xcodebuild logs" nunca corre porque Codemagic detiene el workflow al fallar el paso anterior. El SPM y `Package.swift` están correctos (verifiqué los nombres de productos de los 4 plugins nuevos), así que el fallo está en compilación/firma pero está oculto.
 
-## Diagnóstico
-El proyecto iOS está configurado con **Swift Package Manager** (`ios/App/CapApp-SPM/Package.swift`), no CocoaPods. Por eso:
-- `ios/App/Pods` no existe → el step `Verify notification plugins` falla.
-- `pod install --repo-update` no aporta nada (y puede fallar si no hay `Podfile`).
-- Los plugins nuevos (`@capacitor/local-notifications`, `@capacitor/app`, `@capawesome/capacitor-badge`) **no están declarados en `Package.swift`**, así que aunque estén en `node_modules` no se linkean al binario iOS. Ese es el problema real detrás del error de Apple/Codemagic.
+## Plan
 
-## Cambios
+Modificar `codemagic.yaml` (workflow `capacitor_ios_release`) para exponer el error real antes de arreglarlo:
 
-### 1. `ios/App/CapApp-SPM/Package.swift`
-Añadir los 3 paquetes locales y sus productos:
-- `CapacitorLocalNotifications` → `../../../node_modules/@capacitor/local-notifications`
-- `CapacitorApp` → `../../../node_modules/@capacitor/app`
-- `CapawesomeCapacitorBadge` → `../../../node_modules/@capawesome/capacitor-badge`
+1. **Reemplazar el paso `Build signed IPA`** por una versión que:
+   - Ejecute primero `xcodebuild ... archive` a mano con salida redirigida a `/tmp/xcodebuild_logs/archive.log` (además de stdout via `tee`).
+   - Si falla, imprima con `tail -n 500` y también los últimos errores filtrados con `grep -E "error:|warning:|note:"`.
+   - Solo si el archive tiene éxito, llame a `xcode-project build-ipa` (que reutilizará el `.xcarchive`).
 
-Agregarlos como `.package(name:, path:)` en `dependencies` y como `.product(name:, package:)` en el target `CapApp-SPM`.
+2. **Cambiar `Print xcodebuild logs`** para que corra siempre (`ignore_failure: true` en el paso anterior + este siempre imprime), y suba `archive.log` como artifact.
 
-### 2. `codemagic.yaml` — workflow `capacitor_ios_release`
-- **Eliminar** el step `Install CocoaPods dependencies` (no hay Podfile).
-- **Eliminar** `cocoapods: default` del `environment` y las rutas `~/Library/Caches/CocoaPods`, `~/.cocoapods/repos`, `ios/App/Pods` del cache.
-- **Reemplazar** el step `Verify notification plugins` por una verificación SPM:
-  ```yaml
-  - name: Verify notification plugins
-    script: |
-      cd ios/App
-      grep -E "CapacitorPushNotifications|CapacitorLocalNotifications|CapacitorApp|CapawesomeCapacitorBadge" CapApp-SPM/Package.swift \
-        || (echo "Missing notification plugins in Package.swift" && exit 1)
-      # Fuerza resolución SPM antes del build
-      xcodebuild -resolvePackageDependencies -project App.xcodeproj -scheme App || true
-  ```
-- Añadir cache SPM: `- ~/Library/Developer/Xcode/DerivedData/**/SourcePackages`.
+3. **Añadir un paso previo `Preflight SPM resolve`** que ejecute:
+   ```
+   xcodebuild -resolvePackageDependencies -project ios/App/App.xcodeproj -scheme App -clonedSourcePackagesDirPath /tmp/spm 2>&1 | tee /tmp/xcodebuild_logs/spm.log
+   ```
+   Así, si algún plugin no resuelve, lo vemos antes del archive.
 
-### 3. `NOTIFICATIONS_SETUP.md`
-Actualizar la sección iOS: aclarar que se usa SPM (no CocoaPods) y que agregar plugins requiere editar `CapApp-SPM/Package.swift` + `npx cap sync ios`.
+4. **Añadir `archive.log` y `spm.log` a `artifacts:`** para poder descargarlos desde Codemagic si el email trunca.
 
-## Fuera de scope
-No se toca lógica de portal, RBAC, Supabase, ni el workflow Android.
+## Qué NO cambia en este paso
+
+- No toco `Package.swift` (ya está correcto).
+- No toco código de la app, `Info.plist`, `AppDelegate.swift`, ni el flujo de Android.
+- No cambio versiones ni firma.
+
+## Siguiente iteración
+
+Cuando corras el build y me mandes el `archive.log` (o el nuevo tail que ahora sí saldrá), diagnosticaré la causa real (probablemente firma manual vs automática, deployment target, o un símbolo faltante en un plugin) y aplicaré el fix puntual.

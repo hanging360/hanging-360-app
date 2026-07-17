@@ -54,6 +54,15 @@ workflows:
           xcodebuild -resolvePackageDependencies -project App.xcodeproj -scheme App || true
           cd ../..
 
+      - name: Preflight SPM resolve
+        script: |
+          mkdir -p /tmp/xcodebuild_logs
+          set -o pipefail
+          xcodebuild -resolvePackageDependencies \
+            -project ios/App/App.xcodeproj \
+            -scheme App \
+            -clonedSourcePackagesDirPath /tmp/spm 2>&1 | tee /tmp/xcodebuild_logs/spm.log
+
       - name: Force Bundle ID and version
         script: |
           sed -i '' 's/com.hanging360.tech/com.hanging360.app/g' ios/App/App.xcodeproj/project.pbxproj || true
@@ -77,17 +86,52 @@ workflows:
           xcodebuild -project "$XCODE_PROJECT" -scheme "$XCODE_SCHEME" -showBuildSettings | egrep "PRODUCT_BUNDLE_IDENTIFIER|DEVELOPMENT_TEAM|CODE_SIGN_STYLE|PROVISIONING_PROFILE_SPECIFIER|PROVISIONING_PROFILE|CODE_SIGN_IDENTITY"
 
       - name: Build signed IPA
+        ignore_failure: true
         script: |
+          mkdir -p /tmp/xcodebuild_logs build/ios/xcarchive
+          set -o pipefail
+          ARCHIVE_PATH="$CM_BUILD_DIR/build/ios/xcarchive/App.xcarchive"
+          echo "=== Running xcodebuild archive (full log at /tmp/xcodebuild_logs/archive.log) ==="
+          if ! xcodebuild \
+                -project "$XCODE_PROJECT" \
+                -scheme "$XCODE_SCHEME" \
+                -configuration Release \
+                -archivePath "$ARCHIVE_PATH" \
+                -destination 'generic/platform=iOS' \
+                COMPILER_INDEX_STORE_ENABLE=NO \
+                DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
+                CODE_SIGN_STYLE=Manual \
+                archive 2>&1 | tee /tmp/xcodebuild_logs/archive.log; then
+            echo ""
+            echo "=== ARCHIVE FAILED — filtered errors ==="
+            grep -E "error:|warning:|note:|Undefined symbol|ld: |Command .* failed" /tmp/xcodebuild_logs/archive.log | tail -n 200 || true
+            echo ""
+            echo "=== ARCHIVE FAILED — last 500 lines of archive.log ==="
+            tail -n 500 /tmp/xcodebuild_logs/archive.log
+            exit 1
+          fi
+          echo "=== Archive OK — exporting IPA ==="
           xcode-project build-ipa \
-            --project "$XCODE_PROJECT" \
-            --scheme "$XCODE_SCHEME" \
-            --verbose
+            --archive-path "$ARCHIVE_PATH" \
+            --verbose 2>&1 | tee /tmp/xcodebuild_logs/export.log
 
       - name: Print xcodebuild logs
         script: |
           echo "=== xcodebuild logs ==="
           find /tmp/xcodebuild_logs -type f -name "*.log" -maxdepth 2 -print || true
-          tail -n 300 /tmp/xcodebuild_logs/*.log || true
+          for f in /tmp/xcodebuild_logs/*.log; do
+            [ -f "$f" ] || continue
+            echo ""
+            echo "===== $f (tail 300) ====="
+            tail -n 300 "$f"
+          done
+          # Fail the workflow if the archive step failed
+          if [ -f /tmp/xcodebuild_logs/archive.log ] && grep -qE "\*\* ARCHIVE FAILED \*\*|error:" /tmp/xcodebuild_logs/archive.log && [ ! -f "$CM_BUILD_DIR/build/ios/ipa"/*.ipa ] 2>/dev/null; then
+            if ! ls "$CM_BUILD_DIR/build/ios/ipa"/*.ipa >/dev/null 2>&1; then
+              echo "No IPA produced — failing workflow."
+              exit 1
+            fi
+          fi
 
     artifacts:
       - build/ios/ipa/*.ipa
