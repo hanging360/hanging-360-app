@@ -115,9 +115,31 @@ workflows:
             exit 1
           fi
           echo "=== Archive OK — exporting IPA ==="
-          xcode-project build-ipa \
-            --archive "$ARCHIVE_PATH" \
-            --verbose 2>&1 | tee /tmp/xcodebuild_logs/export.log
+          EXPORT_DIR="$CM_BUILD_DIR/build/ios/ipa"
+          mkdir -p "$EXPORT_DIR"
+          cat > /tmp/ExportOptions.plist <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store</string>
+            <key>teamID</key><string>${DEVELOPMENT_TEAM}</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>stripSwiftSymbols</key><true/>
+            <key>uploadBitcode</key><false/>
+            <key>uploadSymbols</key><true/>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>${BUNDLE_ID}</key><string>${PROVISIONING_PROFILE_NAME}</string>
+            </dict>
+          </dict>
+          </plist>
+          PLIST
+          xcodebuild -exportArchive \
+            -archivePath "$ARCHIVE_PATH" \
+            -exportPath "$EXPORT_DIR" \
+            -exportOptionsPlist /tmp/ExportOptions.plist \
+            2>&1 | tee /tmp/xcodebuild_logs/export.log
 
       - name: Print xcodebuild logs
         script: |
