@@ -1,32 +1,27 @@
-## Problema
-
-`xcodebuild ... archive` sale con código 65 pero **no vemos el error real** en el log. El paso "Print xcodebuild logs" nunca corre porque Codemagic detiene el workflow al fallar el paso anterior. El SPM y `Package.swift` están correctos (verifiqué los nombres de productos de los 4 plugins nuevos), así que el fallo está en compilación/firma pero está oculto.
-
 ## Plan
 
-Modificar `codemagic.yaml` (workflow `capacitor_ios_release`) para exponer el error real antes de arreglarlo:
+Forzar el nombre del provisioning profile en `codemagic.yaml` para eliminar ambigüedad al firmar.
 
-1. **Reemplazar el paso `Build signed IPA`** por una versión que:
-   - Ejecute primero `xcodebuild ... archive` a mano con salida redirigida a `/tmp/xcodebuild_logs/archive.log` (además de stdout via `tee`).
-   - Si falla, imprima con `tail -n 500` y también los últimos errores filtrados con `grep -E "error:|warning:|note:"`.
-   - Solo si el archive tiene éxito, llame a `xcode-project build-ipa` (que reutilizará el `.xcarchive`).
+### Cambio en `codemagic.yaml` (workflow `capacitor_ios_release`)
 
-2. **Cambiar `Print xcodebuild logs`** para que corra siempre (`ignore_failure: true` en el paso anterior + este siempre imprime), y suba `archive.log` como artifact.
+1. **Añadir variable de entorno** `PROVISIONING_PROFILE_NAME: "Hanging360 App Store"` en el bloque `vars:`.
+   - ⚠️ Necesito confirmar el nombre exacto que dejaste tras la limpieza en Apple Developer. Opciones que teníamos: `Hanging360`, `Hanging360 App Store`, `Hanging360 App Store 1/2`. Dime cuál conservaste.
 
-3. **Añadir un paso previo `Preflight SPM resolve`** que ejecute:
+2. **Modificar el paso `Build signed IPA`** — en la invocación de `xcodebuild archive`, añadir:
    ```
-   xcodebuild -resolvePackageDependencies -project ios/App/App.xcodeproj -scheme App -clonedSourcePackagesDirPath /tmp/spm 2>&1 | tee /tmp/xcodebuild_logs/spm.log
+   PROVISIONING_PROFILE_SPECIFIER="$PROVISIONING_PROFILE_NAME" \
+   CODE_SIGN_IDENTITY="iPhone Distribution" \
    ```
-   Así, si algún plugin no resuelve, lo vemos antes del archive.
 
-4. **Añadir `archive.log` y `spm.log` a `artifacts:`** para poder descargarlos desde Codemagic si el email trunca.
+3. **Añadir al paso `Show code signing settings`** un `echo` del `PROVISIONING_PROFILE_NAME` para verificar en el log antes del archive.
 
-## Qué NO cambia en este paso
+### Qué NO cambia
 
-- No toco `Package.swift` (ya está correcto).
-- No toco código de la app, `Info.plist`, `AppDelegate.swift`, ni el flujo de Android.
-- No cambio versiones ni firma.
+- Nada de `Package.swift`, entitlements, `Info.plist`, `AppDelegate.swift`, código de app, ni workflow Android.
+- Sin cambios en la parte de descarga de profiles (sigue funcionando con App Store Connect API key).
 
-## Siguiente iteración
+### Después
 
-Cuando corras el build y me mandes el `archive.log` (o el nuevo tail que ahora sí saldrá), diagnosticaré la causa real (probablemente firma manual vs automática, deployment target, o un símbolo faltante en un plugin) y aplicaré el fix puntual.
+Correr `capacitor_ios_release`. En el paso `Show code signing settings` debe verse el `PROVISIONING_PROFILE_SPECIFIER` = nombre elegido, y el archive debe completar sin error de `aps-environment`.
+
+**Confirma qué profile dejaste activo** para escribir el nombre exacto en el YAML.

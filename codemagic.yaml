@@ -14,6 +14,7 @@ workflows:
         BUNDLE_ID: "com.hanging360.app"
         DEVELOPMENT_TEAM: "C427U3735D"
         MARKETING_VERSION: "0.4"
+        PROVISIONING_PROFILE_NAME: "Hanging360 App Store"
 
     cache:
       cache_paths:
@@ -83,6 +84,7 @@ workflows:
 
       - name: Show code signing settings
         script: |
+          echo "PROVISIONING_PROFILE_NAME=$PROVISIONING_PROFILE_NAME"
           xcodebuild -project "$XCODE_PROJECT" -scheme "$XCODE_SCHEME" -showBuildSettings | egrep "PRODUCT_BUNDLE_IDENTIFIER|DEVELOPMENT_TEAM|CODE_SIGN_STYLE|PROVISIONING_PROFILE_SPECIFIER|PROVISIONING_PROFILE|CODE_SIGN_IDENTITY"
 
       - name: Build signed IPA
@@ -101,6 +103,8 @@ workflows:
                 COMPILER_INDEX_STORE_ENABLE=NO \
                 DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
                 CODE_SIGN_STYLE=Manual \
+                PROVISIONING_PROFILE_SPECIFIER="$PROVISIONING_PROFILE_NAME" \
+                CODE_SIGN_IDENTITY="iPhone Distribution" \
                 archive 2>&1 | tee /tmp/xcodebuild_logs/archive.log; then
             echo ""
             echo "=== ARCHIVE FAILED — filtered errors ==="
