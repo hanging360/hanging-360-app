@@ -18,7 +18,7 @@ workflows:
         PACKAGE_NAME: "com.hanging360.app"
         VERSION_NAME: "4"
       android_signing:
-        - hanging360_keystore_original
+        - hanging360_keystore_v2
 
     cache:
       cache_paths:
@@ -64,7 +64,7 @@ workflows:
       - name: Verify keystore is available
         script: |
           if [ -z "$CM_KEYSTORE_PATH" ] || [ ! -f "$CM_KEYSTORE_PATH" ]; then
-            echo "ERROR: CM_KEYSTORE_PATH not set — hanging360_keystore_v2 no adjunto al workflow"
+            echo "ERROR: CM_KEYSTORE_PATH no está definido — hanging360_keystore_v2 no está adjunto al workflow"
             exit 1
           fi
           echo "Keystore OK en $CM_KEYSTORE_PATH (alias=$CM_KEY_ALIAS)"
@@ -84,19 +84,27 @@ workflows:
 
       - name: Verify key password
         script: |
-          # Valida que CM_KEY_PASSWORD abre la private key del alias.
-          # -new igual al actual = no cambia nada, solo intenta descifrar la key.
-          keytool -keypasswd -keystore "$CM_KEYSTORE_PATH" \
+          # PKCS12 no admite `keytool -keypasswd`. Firmar un JAR temporal
+          # comprueba de verdad que store password, alias y key password funcionan.
+          rm -rf /tmp/hanging360-sign-check
+          mkdir -p /tmp/hanging360-sign-check/content
+          echo "Hanging360 signing preflight" > /tmp/hanging360-sign-check/content/check.txt
+          (cd /tmp/hanging360-sign-check/content && zip -q ../check.jar check.txt)
+          if ! jarsigner \
+            -keystore "$CM_KEYSTORE_PATH" \
             -storepass "$CM_KEYSTORE_PASSWORD" \
-            -alias "$CM_KEY_ALIAS" \
             -keypass "$CM_KEY_PASSWORD" \
-            -new "$CM_KEY_PASSWORD" 2>&1 | tee /tmp/kp.log || true
-          if grep -qiE "password was incorrect|not properly padded|Get Key failed|keytool error" /tmp/kp.log; then
-            echo "ERROR: CM_KEY_PASSWORD no coincide con el key password real del alias '$CM_KEY_ALIAS'"
-            echo "Corrige el campo 'Key password' en Codemagic → Android keystores → hanging360_keystore_original"
+            /tmp/hanging360-sign-check/check.jar "$CM_KEY_ALIAS" \
+            2>&1 | tee /tmp/kp.log; then
+            echo "ERROR: Codemagic no pudo firmar con el alias '$CM_KEY_ALIAS'"
+            echo "Revisa alias y contraseñas de hanging360_keystore_v2 en Codemagic."
             exit 1
           fi
-          echo "Key password OK."
+          jarsigner -verify /tmp/hanging360-sign-check/check.jar >/dev/null 2>&1 || {
+            echo "ERROR: La firma de prueba no se pudo verificar."
+            exit 1
+          }
+          echo "Keystore, alias y key password OK."
 
       - name: Build signed AAB + APK
         script: |
