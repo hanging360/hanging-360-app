@@ -18,7 +18,7 @@ workflows:
         PACKAGE_NAME: "com.hanging360.app"
         VERSION_NAME: "4"
       android_signing:
-        - hanging360_keystore_v2
+        - hanging360_keystore_original
 
     cache:
       cache_paths:
@@ -64,7 +64,7 @@ workflows:
       - name: Verify keystore is available
         script: |
           if [ -z "$CM_KEYSTORE_PATH" ] || [ ! -f "$CM_KEYSTORE_PATH" ]; then
-            echo "ERROR: CM_KEYSTORE_PATH no está definido — hanging360_keystore_v2 no está adjunto al workflow"
+            echo "ERROR: CM_KEYSTORE_PATH no está definido — hanging360_keystore_original no está adjunto al workflow"
             exit 1
           fi
           echo "Keystore OK en $CM_KEYSTORE_PATH (alias=$CM_KEY_ALIAS)"
@@ -97,7 +97,7 @@ workflows:
             /tmp/hanging360-sign-check/check.jar "$CM_KEY_ALIAS" \
             2>&1 | tee /tmp/kp.log; then
             echo "ERROR: Codemagic no pudo firmar con el alias '$CM_KEY_ALIAS'"
-            echo "Revisa alias y contraseñas de hanging360_keystore_v2 en Codemagic."
+            echo "Revisa alias y contraseñas de hanging360_keystore_original en Codemagic."
             exit 1
           fi
           jarsigner -verify /tmp/hanging360-sign-check/check.jar >/dev/null 2>&1 || {
