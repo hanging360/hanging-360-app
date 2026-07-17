@@ -1,23 +1,20 @@
 ## Problema
-El paso "Build web app" falla en el runner macOS de Codemagic con:
-`Cannot find module @rollup/rollup-darwin-arm64`
+`npx cap sync android` falla con:
+`The Capacitor CLI requires NodeJS >=22.0.0`
 
-Es el bug conocido de npm con dependencias opcionales (npm/cli#4828): el `package-lock.json` fue generado en otra plataforma (Linux) y npm omite el binario nativo de Rollup para darwin-arm64.
+El workflow `capacitor_android_release` en `codemagic.yaml` fija `node: 20`, pero la versión actual de Capacitor CLI requiere Node 22+.
 
 ## Solución
-Modificar el paso **"Install JS dependencies"** en `codemagic.yaml` en **ambos workflows** (`capacitor_ios_release` y `capacitor_android_release`) para eliminar `package-lock.json` y `node_modules` antes de `npm install`, forzando la resolución nativa por plataforma:
+Actualizar la versión de Node en `codemagic.yaml`:
 
-```yaml
-- name: Install JS dependencies
-  script: |
-    rm -rf node_modules package-lock.json
-    npm install --no-audit --no-fund --legacy-peer-deps
-```
+- En `capacitor_android_release` → `environment.node`: cambiar `20` → `22`.
+- En `capacitor_ios_release` no hay clave `node` explícita (usa la default del runner macOS), pero para evitar el mismo error añadir `node: 22` en su bloque `environment`.
 
-Esto garantiza que en macOS se descargue `@rollup/rollup-darwin-arm64` y en Linux `@rollup/rollup-linux-x64-gnu`, evitando el crash de Rollup en `vite build`.
+No se toca Java (21), ni el keystore, ni el resto de scripts.
 
 ## Fuera de alcance
-No se cambian versiones de Rollup/Vite ni el `package.json` del proyecto.
+- No cambiar versiones de Capacitor, Vite, Rollup ni `package.json`.
+- No modificar la lógica de firma ni los triggers.
 
 ## Resultado esperado
-`npm run build` completa en ambos workflows y las compilaciones siguen hasta generar el `.ipa` (iOS) y el `.aab` (Android).
+`npx cap sync android` (y `ios`) se ejecuta con Node 22 y el workflow continúa hasta generar el `.aab` firmado.
