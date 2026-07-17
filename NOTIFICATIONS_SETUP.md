@@ -172,15 +172,16 @@ Sin estos archivos, el sistema usa el tono por defecto cuando la app está cerra
 
 ## 🔐 Guardar credenciales de login (web app remoto)
 
-El shell habilita el password manager del sistema en WKWebView / Android WebView. Para que aparezca el prompt "Guardar contraseña", el **formulario del web app** debe:
+El shell conserva DOM storage/cookies en WKWebView / Android WebView y habilita Autofill. Para que aparezca el prompt "Guardar contraseña", el **formulario del web app** debe:
 
 ```html
 <form>
-  <input type="email" name="email" autocomplete="username" />
+  <input type="email" name="username" autocomplete="username" />
   <input type="password" name="password" autocomplete="current-password" />
   <button type="submit">Entrar</button>
 </form>
 ```
 
 - Sin `autocomplete="username"` + `current-password` iOS/Android **no** ofrecerán guardar.
+- Después de un login correcto, el portal debe conservar la sesión Supabase (`persistSession: true`) y no navegar a `/login` hasta terminar la carga inicial de autenticación.
 - Para autofill nativo en iOS por dominio, publicar en `https://tech.hanging360.com/.well-known/apple-app-site-association` el bloque `webcredentials` con el appID `TEAMID.com.hanging360.app`.

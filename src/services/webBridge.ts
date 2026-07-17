@@ -49,7 +49,7 @@ export async function registerAllChannels() {
         description: c.description,
         importance: c.importance,
         visibility: c.visibility,
-        sound: c.soundAndroid, // 'default' o nombre sin ext en res/raw
+        sound: c.soundAndroid === "default" ? "default" : `${c.soundAndroid}.mp3`,
         vibration: c.vibration,
         lights: c.lights,
       });
