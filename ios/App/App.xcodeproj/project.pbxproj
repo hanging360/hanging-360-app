@@ -15,6 +15,11 @@
 		504EC30F1FED79650016851F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 504EC30E1FED79650016851F /* Assets.xcassets */; };
 		504EC3121FED79650016851F /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 504EC3101FED79650016851F /* LaunchScreen.storyboard */; };
 		50B271D11FEDC1A000F3C39B /* public in Resources */ = {isa = PBXBuildFile; fileRef = 50B271D01FEDC1A000F3C39B /* public */; };
+		A100000000000000000000A1 /* message.caf in Resources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000B1 /* message.caf */; };
+		A100000000000000000000A2 /* whatsapp.caf in Resources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000B2 /* whatsapp.caf */; };
+		A100000000000000000000A3 /* appointment.caf in Resources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000B3 /* appointment.caf */; };
+		A100000000000000000000A4 /* payment.caf in Resources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000B4 /* payment.caf */; };
+		A100000000000000000000A5 /* update.caf in Resources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000B5 /* update.caf */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -29,6 +34,11 @@
 		7B1F7E7A2D2A401A8A1AB001 /* App.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = App.entitlements; sourceTree = "<group>"; };
 		50B271D01FEDC1A000F3C39B /* public */ = {isa = PBXFileReference; lastKnownFileType = folder; path = public; sourceTree = "<group>"; };
 		958DCC722DB07C7200EA8C5F /* debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = debug.xcconfig; path = ../debug.xcconfig; sourceTree = SOURCE_ROOT; };
+		A100000000000000000000B1 /* message.caf */ = {isa = PBXFileReference; lastKnownFileType = file; path = message.caf; sourceTree = "<group>"; };
+		A100000000000000000000B2 /* whatsapp.caf */ = {isa = PBXFileReference; lastKnownFileType = file; path = whatsapp.caf; sourceTree = "<group>"; };
+		A100000000000000000000B3 /* appointment.caf */ = {isa = PBXFileReference; lastKnownFileType = file; path = appointment.caf; sourceTree = "<group>"; };
+		A100000000000000000000B4 /* payment.caf */ = {isa = PBXFileReference; lastKnownFileType = file; path = payment.caf; sourceTree = "<group>"; };
+		A100000000000000000000B5 /* update.caf */ = {isa = PBXFileReference; lastKnownFileType = file; path = update.caf; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -72,6 +82,11 @@
 				7B1F7E7A2D2A401A8A1AB001 /* App.entitlements */,
 				2FAD9762203C412B000D30F8 /* config.xml */,
 				50B271D01FEDC1A000F3C39B /* public */,
+				A100000000000000000000B1 /* message.caf */,
+				A100000000000000000000B2 /* whatsapp.caf */,
+				A100000000000000000000B3 /* appointment.caf */,
+				A100000000000000000000B4 /* payment.caf */,
+				A100000000000000000000B5 /* update.caf */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -147,6 +162,11 @@
 				50379B232058CBB4000EE86E /* capacitor.config.json in Resources */,
 				504EC30D1FED79650016851F /* Main.storyboard in Resources */,
 				2FAD9763203C412B000D30F8 /* config.xml in Resources */,
+				A100000000000000000000A1 /* message.caf in Resources */,
+				A100000000000000000000A2 /* whatsapp.caf in Resources */,
+				A100000000000000000000A3 /* appointment.caf in Resources */,
+				A100000000000000000000A4 /* payment.caf in Resources */,
+				A100000000000000000000A5 /* update.caf in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
