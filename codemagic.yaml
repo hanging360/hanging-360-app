@@ -17,6 +17,7 @@ workflows:
       vars:
         PACKAGE_NAME: "com.hanging360.app"
         VERSION_NAME: "4"
+        VERSION_CODE_BASE: "10"
       android_signing:
         - hanging360_keystore_original
 
@@ -48,10 +49,15 @@ workflows:
 
       - name: Force applicationId and version
         script: |
-          sed -i 's/com.hanging360.tech/com.hanging360.app/g' android/app/build.gradle || true
-          sed -i 's/com.hanging360.tech/com.hanging360.app/g' android/app/src/main/res/values/strings.xml || true
-          sed -i "s/versionName \"[^\"]*\"/versionName \"$VERSION_NAME\"/" android/app/build.gradle || true
-          sed -i "s/versionCode [0-9]*/versionCode $BUILD_NUMBER/" android/app/build.gradle || true
+          # applicationId ya está fijo en el source; solo calculamos versionCode efectivo.
+          BN="${BUILD_NUMBER:-0}"
+          if [ "$BN" -gt "$VERSION_CODE_BASE" ]; then
+            EFFECTIVE_VERSION_CODE="$BN"
+          else
+            EFFECTIVE_VERSION_CODE="$VERSION_CODE_BASE"
+          fi
+          echo "EFFECTIVE_VERSION_CODE=$EFFECTIVE_VERSION_CODE"
+          echo "EFFECTIVE_VERSION_CODE=$EFFECTIVE_VERSION_CODE" >> $CM_ENV
           echo "=== build.gradle after overrides ==="
           grep -E "applicationId|namespace|versionName|versionCode" android/app/build.gradle || true
 
@@ -113,7 +119,7 @@ workflows:
           ./gradlew clean
           ./gradlew :app:bundleRelease :app:assembleRelease \
             -PversionName=$VERSION_NAME \
-            -PversionCode=$BUILD_NUMBER
+            -PversionCode=$EFFECTIVE_VERSION_CODE
 
       - name: Verify AAB artifact
         script: |
@@ -135,6 +141,29 @@ workflows:
             exit 1
           fi
           echo "AAB firmado correctamente."
+
+      - name: Verify AAB package + versionCode
+        script: |
+          AAB=$(ls android/app/build/outputs/bundle/release/*.aab | head -n1)
+          APK=$(ls android/app/build/outputs/apk/release/*.apk | head -n1 || true)
+          BADGING=""
+          if [ -n "$APK" ] && [ -f "$APK" ]; then
+            AAPT2=$(find $ANDROID_SDK_ROOT/build-tools -name aapt2 | sort | tail -n1)
+            BADGING=$("$AAPT2" dump badging "$APK" 2>/dev/null || true)
+          fi
+          echo "$BADGING" | head -n 5
+          PKG=$(echo "$BADGING" | grep -oE "package: name='[^']+'" | head -n1 | sed "s/package: name='//; s/'//")
+          VC=$(echo "$BADGING" | grep -oE "versionCode='[0-9]+'" | head -n1 | sed "s/versionCode='//; s/'//")
+          echo "package=$PKG versionCode=$VC"
+          if [ "$PKG" != "com.hanging360.app" ]; then
+            echo "ERROR: package incorrecto ($PKG) — Play exige com.hanging360.app"
+            exit 1
+          fi
+          if [ -z "$VC" ] || [ "$VC" -lt "$VERSION_CODE_BASE" ]; then
+            echo "ERROR: versionCode $VC < $VERSION_CODE_BASE — Play rechazará por versión duplicada"
+            exit 1
+          fi
+          echo "Package y versionCode OK."
 
     artifacts:
       - android/app/build/outputs/**/*.aab
