@@ -41,7 +41,33 @@ function reply(requestId: string | undefined, ok: boolean, extra?: Record<string
 export async function registerAllChannels() {
   if (!isNativePlatform()) return;
   if (getPlatform() !== "android") return;
-  for (const c of ALL_CHANNELS) {
+
+  // Android freezes a channel's sound after first creation. Remove the old,
+  // potentially silent channels once, then recreate aliases for older backend
+  // payloads while all senders migrate to the v3 IDs.
+  const migrationKey = "hanging360_notification_channels_v3";
+  const legacyIds = [
+    "hanging360_alerts_v2",
+    "hanging360_message",
+    "hanging360_whatsapp",
+    "hanging360_appointment_new",
+    "hanging360_appointment_update",
+    "hanging360_payment",
+    "hanging360_update",
+  ];
+  if (window.localStorage.getItem(migrationKey) !== "done") {
+    for (const id of legacyIds) {
+      try { await PushNotifications.deleteChannel?.({ id }); } catch {}
+    }
+  }
+
+  const compatibilityChannels = ALL_CHANNELS.map((channel) => ({
+    ...channel,
+    id: channel.id.replace(/_v3$/, ""),
+    name: `${channel.name} (compatibilidad)`,
+  }));
+
+  for (const c of [...ALL_CHANNELS, ...compatibilityChannels]) {
     try {
       await PushNotifications.createChannel?.({
         id: c.id,
@@ -57,6 +83,7 @@ export async function registerAllChannels() {
       console.warn("createChannel failed for", c.id, e);
     }
   }
+  window.localStorage.setItem(migrationKey, "done");
 }
 
 async function handle(msg: InMsg) {

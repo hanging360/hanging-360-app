@@ -27,7 +27,7 @@ Este documento resume la configuración de push + local notifications con **badg
 - Sonido por defecto + vibración + luces.
 
 **AndroidManifest.xml**:
-- Meta `default_notification_channel_id = hanging360_alerts_v2`.
+- Meta `default_notification_channel_id = hanging360_alerts_v3`.
 - Meta `default_notification_icon = @drawable/ic_stat_icon` (silueta monocromo — evita cuadro blanco).
 - Meta `default_notification_color = @color/notification_color`.
 
