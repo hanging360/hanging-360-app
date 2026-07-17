@@ -181,7 +181,7 @@ workflows:
       node: 20
       vars:
         PACKAGE_NAME: "com.hanging360.app"
-        VERSION_NAME: "0.4"
+        VERSION_NAME: "4"
       android_signing:
         - hanging360_keystore
 
@@ -209,6 +209,15 @@ workflows:
       - name: Sync Capacitor Android
         script: |
           npx cap sync android
+
+      - name: Force applicationId and version
+        script: |
+          sed -i '' 's/com.hanging360.tech/com.hanging360.app/g' android/app/build.gradle || true
+          sed -i '' 's/com.hanging360.tech/com.hanging360.app/g' android/app/src/main/res/values/strings.xml || true
+          sed -i '' "s/versionName \"[^\"]*\"/versionName \"$VERSION_NAME\"/" android/app/build.gradle || true
+          sed -i '' "s/versionCode [0-9]*/versionCode $BUILD_NUMBER/" android/app/build.gradle || true
+          echo "=== build.gradle after overrides ==="
+          grep -E "applicationId|namespace|versionName|versionCode" android/app/build.gradle || true
 
       - name: Verify notification plugins
         script: |

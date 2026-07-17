@@ -1,51 +1,47 @@
-## Problema
+## Objetivo
 
-`xcode-project build-ipa` **no acepta** un archive ya generado — solo puede crear el archive desde cero (`--archive-directory` es el directorio de salida, no de entrada). Por eso rechaza `--archive` como ambiguo.
+Preparar `capacitor_android_release` en `codemagic.yaml` para generar la nueva versión de Android con **versionName = `4`** (ya existía una versión 3 en Play), y alinear el `applicationId` a `com.hanging360.app`. iOS se queda en `0.4` sin tocar.
 
-El archive ya está firmado correctamente. Solo hay que exportar el `.ipa` desde ese `.xcarchive` existente usando `xcodebuild -exportArchive` directo (sin `xcode-project`).
+## Cambios en `codemagic.yaml` (solo workflow Android)
 
-## Cambio único en `codemagic.yaml`
+### 1. Variables
+```yaml
+vars:
+  PACKAGE_NAME: "com.hanging360.app"
+  VERSION_NAME: "4"   # antes 0.4
+```
 
-En el paso **Build signed IPA**, reemplazar el bloque final `xcode-project build-ipa …` por un export nativo con `xcodebuild`:
+### 2. Nuevo paso "Force applicationId and version" antes del build
+Equivalente al que ya tiene iOS. Garantiza que el AAB/APK salga con el package y versión correctos aunque los fuentes tengan otros valores:
 
 ```bash
-echo "=== Archive OK — exporting IPA ==="
-EXPORT_DIR="$CM_BUILD_DIR/build/ios/ipa"
-mkdir -p "$EXPORT_DIR"
-
-# ExportOptions.plist para App Store con firma manual
-cat > /tmp/ExportOptions.plist <<PLIST
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>method</key><string>app-store</string>
-  <key>teamID</key><string>${DEVELOPMENT_TEAM}</string>
-  <key>signingStyle</key><string>manual</string>
-  <key>stripSwiftSymbols</key><true/>
-  <key>uploadBitcode</key><false/>
-  <key>uploadSymbols</key><true/>
-  <key>provisioningProfiles</key>
-  <dict>
-    <key>${BUNDLE_ID}</key><string>${PROVISIONING_PROFILE_NAME}</string>
-  </dict>
-</dict>
-</plist>
-PLIST
-
-xcodebuild -exportArchive \
-  -archivePath "$ARCHIVE_PATH" \
-  -exportPath "$EXPORT_DIR" \
-  -exportOptionsPlist /tmp/ExportOptions.plist \
-  2>&1 | tee /tmp/xcodebuild_logs/export.log
+sed -i '' 's/com.hanging360.tech/com.hanging360.app/g' android/app/build.gradle
+sed -i '' 's/com.hanging360.tech/com.hanging360.app/g' android/app/src/main/res/values/strings.xml
+sed -i '' "s/versionName \"[^\"]*\"/versionName \"$VERSION_NAME\"/" android/app/build.gradle
+sed -i '' "s/versionCode [0-9]*/versionCode $BUILD_NUMBER/" android/app/build.gradle
 ```
+
+En el runner macOS de Codemagic `sed -i ''` es la sintaxis correcta (igual que en el paso iOS).
+
+### 3. `gradlew` sigue recibiendo overrides
+```bash
+./gradlew :app:bundleRelease :app:assembleRelease \
+  -PversionName=$VERSION_NAME \
+  -PversionCode=$BUILD_NUMBER
+```
+Sin cambios — refuerza los valores por si `build.gradle` los lee vía `project.properties`.
 
 ## Qué NO cambia
 
-- El bloque `xcodebuild … archive` (ya funciona).
-- Firma, certificados, provisioning profiles.
-- Nada de iOS sources, entitlements, Android, ni el frontend.
+- Workflow iOS (`capacitor_ios_release`) queda intacto en `0.4`.
+- Firma con `hanging360_keystore`.
+- Frontend, Supabase, Capacitor config.
+- `.github/workflows/android-build.yml` (solo debug).
 
 ## Después
 
-Re-lanzar `capacitor_ios_release`. El archive volverá a pasar y el `.ipa` se generará en `build/ios/ipa/App.ipa`, que ya está listado en `artifacts:`.
+Lanzar `capacitor_android_release`. Artefactos en:
+- `android/app/build/outputs/bundle/release/app-release.aab`
+- `android/app/build/outputs/apk/release/app-release.apk`
+
+con `versionName=4`, `versionCode=$BUILD_NUMBER`, `applicationId=com.hanging360.app`.
