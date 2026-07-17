@@ -84,8 +84,9 @@ workflows:
 
       - name: Verify key password
         script: |
-          # PKCS12 no admite `keytool -keypasswd`. Firmar un JAR temporal
-          # comprueba de verdad que store password, alias y key password funcionan.
+          # Esta clave original usa la misma contraseña para el almacén y la clave.
+          # Usar CM_KEYSTORE_PASSWORD evita que un CM_KEY_PASSWORD antiguo provoque
+          # "Given final block not properly padded" durante packageRelease.
           rm -rf /tmp/hanging360-sign-check
           mkdir -p /tmp/hanging360-sign-check/content
           echo "Hanging360 signing preflight" > /tmp/hanging360-sign-check/content/check.txt
@@ -93,7 +94,7 @@ workflows:
           if ! jarsigner \
             -keystore "$CM_KEYSTORE_PATH" \
             -storepass "$CM_KEYSTORE_PASSWORD" \
-            -keypass "$CM_KEY_PASSWORD" \
+            -keypass "$CM_KEYSTORE_PASSWORD" \
             /tmp/hanging360-sign-check/check.jar "$CM_KEY_ALIAS" \
             2>&1 | tee /tmp/kp.log; then
             echo "ERROR: Codemagic no pudo firmar con el alias '$CM_KEY_ALIAS'"
@@ -104,7 +105,7 @@ workflows:
             echo "ERROR: La firma de prueba no se pudo verificar."
             exit 1
           }
-          echo "Keystore, alias y key password OK."
+          echo "Keystore, alias y contraseña compartida OK."
 
       - name: Build signed AAB + APK
         script: |
