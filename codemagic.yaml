@@ -82,6 +82,22 @@ workflows:
             exit 1
           fi
 
+      - name: Verify key password
+        script: |
+          # Valida que CM_KEY_PASSWORD abre la private key del alias.
+          # -new igual al actual = no cambia nada, solo intenta descifrar la key.
+          keytool -keypasswd -keystore "$CM_KEYSTORE_PATH" \
+            -storepass "$CM_KEYSTORE_PASSWORD" \
+            -alias "$CM_KEY_ALIAS" \
+            -keypass "$CM_KEY_PASSWORD" \
+            -new "$CM_KEY_PASSWORD" 2>&1 | tee /tmp/kp.log || true
+          if grep -qiE "password was incorrect|not properly padded|Get Key failed|keytool error" /tmp/kp.log; then
+            echo "ERROR: CM_KEY_PASSWORD no coincide con el key password real del alias '$CM_KEY_ALIAS'"
+            echo "Corrige el campo 'Key password' en Codemagic → Android keystores → hanging360_keystore_original"
+            exit 1
+          fi
+          echo "Key password OK."
+
       - name: Build signed AAB + APK
         script: |
           cd android

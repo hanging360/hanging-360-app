@@ -1,68 +1,70 @@
-## Verificación
+## Diagnóstico
 
-Ejecuté `keytool` sobre el `.keystore` que subiste. Resultado:
+El error de Gradle:
 
-- **Alias real:** `hanging360-key` (no `Hanging360` — importante, si pones el alias mal la firma falla)
-- **Store password:** `@Cr043079` ✓
-- **SHA1:** `19:8C:5D:7C:08:5A:7E:BD:54:BE:22:E1:9D:E9:72:65:6E:02:DD:E0` ✓ **coincide con lo que Play exige**
-- Owner: `CN=Hanging360, OU=Hanging360, O=Hanging360, L=Miami, ST=Florida, C=US`
-- Válido hasta 2053
-
-Este ES el keystore correcto.
-
-## Pasos
-
-### 1. Subir el keystore a Codemagic (lo haces tú)
-
-Codemagic → **Teams → Code signing identities → Android keystores → Add keystore**:
-
-- **Reference name:** `hanging360_keystore_original`
-- **Upload keystore file:** `hanging360-release-key.keystore` (el mismo que subiste aquí)
-- **Keystore password:** `@Cr043079`
-- **Key alias:** `hanging360-key`  ← ojo, con guion, minúsculas
-- **Key password:** `@Cr043079` (si Codemagic la pide y `hanging360` no funciona, prueba con la del store; los keystores nuevos suelen usar la misma para ambas)
-
-Codemagic mostrará la SHA1 al guardar. Debe decir `19:8C:5D:7C:…`. Si sale otra huella no continúes.
-
-### 2. Cambios en el repo (yo, en build mode)
-
-En `codemagic.yaml`, workflow `capacitor_android_release`:
-
-```yaml
-android_signing:
-  - hanging360_keystore_original   # antes: hanging360_keystore_v2
+```
+Failed to read key hanging360-key ... Get Key failed: Given final block not properly padded.
 ```
 
-Y añadir, justo después de "Verify keystore is available":
+Esto **no es un bug del código** — es literalmente Java diciendo *"la contraseña de la key es incorrecta"*. El store abrió bien (si el store password fuera malo, el error sería otro). Lo que falla es el **Key password** que introdujiste al subir el keystore a Codemagic.
+
+Cuando creé el keystore lo verifiqué con `keytool -list -v` usando `-storepass @Cr043079`, y eso solo prueba el store password. El key password puede ser distinto y solo se detecta al firmar.
+
+## Qué tienes que hacer tú en Codemagic (yo no puedo tocar esto)
+
+Codemagic → **Teams → Code signing identities → Android keystores → `hanging360_keystore_original` → Edit**:
+
+- **Keystore password:** `@Cr043079` ✓ (ya está bien)
+- **Key alias:** `hanging360-key` ✓
+- **Key password:** ← aquí está el problema. Prueba en este orden:
+  1. `@Cr043079` (misma que el store)
+  2. `hanging360`
+  3. La que originalmente usaste al crear el keystore hace años
+
+Guarda y relanza el workflow. No necesito cambiar nada en el repo.
+
+## Si no recuerdas el key password
+
+Se puede recuperar/cambiar localmente sin perder la firma (la firma depende de la **private key**, no del password que la protege):
+
+```bash
+# 1. Intenta abrir la key con distintos passwords
+keytool -keypasswd -keystore hanging360-release-key.keystore \
+  -alias hanging360-key -storepass @Cr043079
+
+# Te pedirá el key password actual. Si aciertas, te deja poner uno nuevo.
+# Pon el nuevo igual al store (@Cr043079) para que sea uno solo y no vuelva a pasar.
+```
+
+Después re-subes el `.keystore` a Codemagic con el key password nuevo. La SHA1 sigue siendo la misma `19:8C:5D:…`, así que Play lo acepta.
+
+## Sanity check preventivo (esto sí lo agrego yo cuando me pases a build)
+
+Añadir al workflow, justo después del check de fingerprint, un **test de firma en frío** que falla en 3 segundos si el key password está mal, en vez de esperar a que Gradle compile 4 minutos:
 
 ```yaml
-- name: Verify keystore fingerprint
+- name: Verify key password
   script: |
-    EXPECTED="19:8C:5D:7C:08:5A:7E:BD:54:BE:22:E1:9D:E9:72:65:6E:02:DD:E0"
-    ACTUAL=$(keytool -list -v -keystore "$CM_KEYSTORE_PATH" \
-      -storepass "$CM_KEYSTORE_PASSWORD" -alias "$CM_KEY_ALIAS" \
-      | grep -i "SHA1:" | head -n1 | awk '{print $2}')
-    echo "Expected: $EXPECTED"
-    echo "Actual:   $ACTUAL"
-    [ "$ACTUAL" = "$EXPECTED" ] || { echo "Fingerprint mismatch — Play rechazará el AAB"; exit 1; }
+    keytool -keypasswd -keystore "$CM_KEYSTORE_PATH" \
+      -storepass "$CM_KEYSTORE_PASSWORD" \
+      -alias "$CM_KEY_ALIAS" \
+      -keypass "$CM_KEY_PASSWORD" \
+      -new "$CM_KEY_PASSWORD" 2>&1 | tee /tmp/kp.log
+    if grep -qi "password was incorrect\|not properly padded\|Get Key failed" /tmp/kp.log; then
+      echo "ERROR: CM_KEY_PASSWORD no coincide con el key password real del alias"
+      exit 1
+    fi
 ```
 
-Esto hace que si alguna vez alguien vuelve a adjuntar el keystore equivocado, el build falle en 5 segundos con un mensaje claro en vez de tras 15 minutos de compilación.
-
-### 3. Confirmación pendiente sobre `applicationId`
-
-La versión 3 publicada en Play, ¿tiene `applicationId` `com.hanging360.app` o `com.hanging360.tech`? Play empareja **huella + package name**; si el package no coincide también rechaza. El workflow actual fuerza `com.hanging360.app`. Si Play la registró con `.tech`, hay que quitar ese `sed` de reemplazo. **Míralo en Play Console → App integrity → App signing (o en el listado de la app) y confírmame.**
-
-### 4. Higiene
-
-- Compartiste el keystore y la contraseña en chat. Cuando termine este flujo, guarda el `.keystore` en un lugar seguro cifrado (1Password / Bitwarden), no en el repo ni en el chat.
-- No borres `hanging360_keystore_v2` de Codemagic todavía — déjalo hasta confirmar que el nuevo `.aab` sube a Play sin error.
+(`-new` igual al actual = no cambia nada, solo valida.)
 
 ## Fuera de alcance
 
-- No toco iOS, ni `build.gradle` (ya lee del env de Codemagic), ni versiones, ni el flujo web.
+No toco iOS, ni `build.gradle`, ni versiones, ni el flujo web. Nada del código está mal — el problema es 100% el key password guardado en Codemagic.
 
-## Qué necesito antes de darle a build
+## Qué necesito para pasar a build
 
-1. "Subido a Codemagic como `hanging360_keystore_original`, SHA1 muestra `19:8C:…`" ✓
-2. `applicationId` real en Play (`.app` o `.tech`) ✓
+Una de dos:
+
+- **(a)** Confirmas que corregiste el Key password en Codemagic y quieres que agregue el paso de verificación preventivo, **o**
+- **(b)** Me dices que no recuerdas el key password y prefieres cambiarlo con el comando `keytool -keypasswd` de arriba antes de re-subirlo.
