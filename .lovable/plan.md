@@ -1,30 +1,23 @@
-## Objetivo
-Hacer que Codemagic ejecute el flujo Android y entregue `app-release.aab` firmado con el keystore válido, en lugar de seleccionar iOS y producir únicamente el IPA.
+## Problema
+El paso "Build web app" falla en el runner macOS de Codemagic con:
+`Cannot find module @rollup/rollup-darwin-arm64`
 
-## Cambios en `codemagic.yaml`
+Es el bug conocido de npm con dependencias opcionales (npm/cli#4828): el `package-lock.json` fue generado en otra plataforma (Linux) y npm omite el binario nativo de Rollup para darwin-arm64.
 
-1. **Reordenar workflows**: mover `capacitor_android_release` al inicio de `workflows:` para que sea el flujo principal cuando Codemagic lee el YAML.
+## Solución
+Modificar el paso **"Install JS dependencies"** en `codemagic.yaml` en **ambos workflows** (`capacitor_ios_release` y `capacitor_android_release`) para eliminar `package-lock.json` y `node_modules` antes de `npm install`, forzando la resolución nativa por plataforma:
 
-2. **Actualizar keystore de firma** en `capacitor_android_release.environment.android_signing`:
-   - Reemplazar `hanging360_keystore` (sin metadatos, expirado/roto) por **`hanging360_keystore_v2`** (CN=hanging360_keystore, válido hasta julio 2053).
-   - Este es el keystore que se usará para firmar el `.aab` destinado a Google Play.
+```yaml
+- name: Install JS dependencies
+  script: |
+    rm -rf node_modules package-lock.json
+    npm install --no-audit --no-fund --legacy-peer-deps
+```
 
-3. **Añadir `triggering` a ambos workflows** para que cada push a `main` dispare Android automáticamente (y opcionalmente iOS), sin depender de la selección por defecto del dashboard:
-   ```yaml
-   triggering:
-     events: [push]
-     branch_patterns:
-       - pattern: main
-         include: true
-         source: true
-   ```
-
-4. **Corregir `sed -i ''`** (sintaxis macOS) en el paso "Force applicationId and version" del flujo Android — el runner Android es Linux, requiere `sed -i` sin las comillas vacías. Sin esto, `applicationId`, `namespace`, `versionName` y `versionCode` no se están reescribiendo y el AAB sale con `com.hanging360.tech` v1.0.
-
-5. **Verificar artefacto final**: mantener `artifacts: android/app/build/outputs/**/*.aab` y añadir un paso de validación `ls android/app/build/outputs/bundle/release/*.aab` que falle explícitamente si no se generó el bundle.
+Esto garantiza que en macOS se descargue `@rollup/rollup-darwin-arm64` y en Linux `@rollup/rollup-linux-x64-gnu`, evitando el crash de Rollup en `vite build`.
 
 ## Fuera de alcance
-No se toca el workflow iOS ni el `capacitor.config.ts`.
+No se cambian versiones de Rollup/Vite ni el `package.json` del proyecto.
 
 ## Resultado esperado
-Cada push a `main` ejecuta **Capacitor Android Release** → produce `app-release.aab` firmado con `hanging360_keystore_v2` (válido hasta 2053), `applicationId=com.hanging360.app`, `versionName=4`, `versionCode=$BUILD_NUMBER`, listo para subir a Google Play.
+`npm run build` completa en ambos workflows y las compilaciones siguen hasta generar el `.ipa` (iOS) y el `.aab` (Android).
