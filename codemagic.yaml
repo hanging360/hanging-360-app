@@ -1,7 +1,107 @@
 workflows:
+  capacitor_android_release:
+    name: Capacitor Android Release
+    max_build_duration: 120
+
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: main
+          include: true
+          source: true
+
+    environment:
+      java: 21
+      node: 20
+      vars:
+        PACKAGE_NAME: "com.hanging360.app"
+        VERSION_NAME: "4"
+      android_signing:
+        - hanging360_keystore_v2
+
+    cache:
+      cache_paths:
+        - ~/.npm
+        - ~/.gradle/caches
+        - android/.gradle
+
+    scripts:
+      - name: Validate toolchain
+        script: |
+          node -v
+          npm -v
+          java -version
+
+      - name: Install JS dependencies
+        script: |
+          npm install --no-audit --no-fund --legacy-peer-deps
+
+      - name: Build web app
+        script: |
+          npm run build
+
+      - name: Sync Capacitor Android
+        script: |
+          npx cap sync android
+
+      - name: Force applicationId and version
+        script: |
+          sed -i 's/com.hanging360.tech/com.hanging360.app/g' android/app/build.gradle || true
+          sed -i 's/com.hanging360.tech/com.hanging360.app/g' android/app/src/main/res/values/strings.xml || true
+          sed -i "s/versionName \"[^\"]*\"/versionName \"$VERSION_NAME\"/" android/app/build.gradle || true
+          sed -i "s/versionCode [0-9]*/versionCode $BUILD_NUMBER/" android/app/build.gradle || true
+          echo "=== build.gradle after overrides ==="
+          grep -E "applicationId|namespace|versionName|versionCode" android/app/build.gradle || true
+
+      - name: Verify notification plugins
+        script: |
+          grep -E "capacitor-push-notifications|capacitor-local-notifications|capacitor-app|capawesome.*badge" \
+            android/capacitor.settings.gradle android/app/capacitor.build.gradle \
+            || (echo "Missing notification plugin refs in gradle" && exit 1)
+
+      - name: Build signed AAB + APK
+        script: |
+          cd android
+          ./gradlew clean
+          ./gradlew :app:bundleRelease :app:assembleRelease \
+            -PversionName=$VERSION_NAME \
+            -PversionCode=$BUILD_NUMBER
+
+      - name: Verify AAB artifact
+        script: |
+          echo "=== Listing release outputs ==="
+          ls -la android/app/build/outputs/bundle/release/ || true
+          ls -la android/app/build/outputs/apk/release/ || true
+          if ! ls android/app/build/outputs/bundle/release/*.aab >/dev/null 2>&1; then
+            echo "ERROR: No AAB produced in android/app/build/outputs/bundle/release/"
+            exit 1
+          fi
+          echo "AAB generated successfully."
+
+    artifacts:
+      - android/app/build/outputs/**/*.aab
+      - android/app/build/outputs/**/*.apk
+
+    publishing:
+      email:
+        recipients:
+          - cubanito_com@yahoo.com
+        notify:
+          success: true
+          failure: true
+
   capacitor_ios_release:
     name: Capacitor iOS Release
     max_build_duration: 120
+
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: main
+          include: true
+          source: true
 
     environment:
       xcode: latest
@@ -163,79 +263,6 @@ workflows:
       - build/ios/ipa/*.ipa
       - /tmp/xcodebuild_logs/*.log
       - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.app
-
-    publishing:
-      email:
-        recipients:
-          - cubanito_com@yahoo.com
-        notify:
-          success: true
-          failure: true
-
-  capacitor_android_release:
-    name: Capacitor Android Release
-    max_build_duration: 120
-
-    environment:
-      java: 21
-      node: 20
-      vars:
-        PACKAGE_NAME: "com.hanging360.app"
-        VERSION_NAME: "4"
-      android_signing:
-        - hanging360_keystore
-
-    cache:
-      cache_paths:
-        - ~/.npm
-        - ~/.gradle/caches
-        - android/.gradle
-
-    scripts:
-      - name: Validate toolchain
-        script: |
-          node -v
-          npm -v
-          java -version
-
-      - name: Install JS dependencies
-        script: |
-          npm install --no-audit --no-fund --legacy-peer-deps
-
-      - name: Build web app
-        script: |
-          npm run build
-
-      - name: Sync Capacitor Android
-        script: |
-          npx cap sync android
-
-      - name: Force applicationId and version
-        script: |
-          sed -i '' 's/com.hanging360.tech/com.hanging360.app/g' android/app/build.gradle || true
-          sed -i '' 's/com.hanging360.tech/com.hanging360.app/g' android/app/src/main/res/values/strings.xml || true
-          sed -i '' "s/versionName \"[^\"]*\"/versionName \"$VERSION_NAME\"/" android/app/build.gradle || true
-          sed -i '' "s/versionCode [0-9]*/versionCode $BUILD_NUMBER/" android/app/build.gradle || true
-          echo "=== build.gradle after overrides ==="
-          grep -E "applicationId|namespace|versionName|versionCode" android/app/build.gradle || true
-
-      - name: Verify notification plugins
-        script: |
-          grep -E "capacitor-push-notifications|capacitor-local-notifications|capacitor-app|capawesome.*badge" \
-            android/capacitor.settings.gradle android/app/capacitor.build.gradle \
-            || (echo "Missing notification plugin refs in gradle" && exit 1)
-
-      - name: Build signed AAB + APK
-        script: |
-          cd android
-          ./gradlew clean
-          ./gradlew :app:bundleRelease :app:assembleRelease \
-            -PversionName=$VERSION_NAME \
-            -PversionCode=$BUILD_NUMBER
-
-    artifacts:
-      - android/app/build/outputs/**/*.aab
-      - android/app/build/outputs/**/*.apk
 
     publishing:
       email:
