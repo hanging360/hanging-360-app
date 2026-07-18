@@ -21,79 +21,42 @@ export type ChannelConfig = {
   lights: boolean;
 };
 
+// Canal único estable. Todos los tipos comparten el mismo channelId para que
+// el backend no necesite conocer sufijos versionados y para que Android no
+// tenga que recrear canales (el sonido se congela al crearse).
+export const STABLE_CHANNEL_ID = "hanging360_alerts";
+
+const baseChannel = (
+  name: string,
+  description: string,
+  importance: ChannelConfig["importance"] = 5,
+): ChannelConfig => ({
+  id: STABLE_CHANNEL_ID,
+  name,
+  description,
+  importance,
+  visibility: 1,
+  soundAndroid: "default",
+  soundIOS: "default",
+  vibration: true,
+  lights: true,
+});
+
 export const NOTIFICATION_CHANNELS: Record<NotificationType, ChannelConfig> = {
-  message: {
-    id: "hanging360_message_v5",
-    name: "Mensajes",
-    description: "Nuevos mensajes de clientes",
-    importance: 5,
-    visibility: 1,
-    soundAndroid: "default",
-    soundIOS: "default",
-    vibration: true,
-    lights: true,
-  },
-  whatsapp: {
-    id: "hanging360_whatsapp_v5",
-    name: "WhatsApp",
-    description: "Mensajes entrantes de WhatsApp",
-    importance: 5,
-    visibility: 1,
-    soundAndroid: "default",
-    soundIOS: "default",
-    vibration: true,
-    lights: true,
-  },
-  appointment_new: {
-    id: "hanging360_appointment_new_v5",
-    name: "Nueva cita",
-    description: "Se ha creado una cita nueva",
-    importance: 5,
-    visibility: 1,
-    soundAndroid: "default",
-    soundIOS: "default",
-    vibration: true,
-    lights: true,
-  },
-  appointment_update: {
-    id: "hanging360_appointment_update_v5",
-    name: "Cambios de cita",
-    description: "Actualizaciones o cancelaciones de citas",
-    importance: 4,
-    visibility: 1,
-    soundAndroid: "default",
-    soundIOS: "default",
-    vibration: true,
-    lights: false,
-  },
-  payment: {
-    id: "hanging360_payment_v5",
-    name: "Pagos",
-    description: "Confirmaciones y recibos de pago",
-    importance: 5,
-    visibility: 1,
-    soundAndroid: "default",
-    soundIOS: "default",
-    vibration: true,
-    lights: true,
-  },
-  update: {
-    id: "hanging360_update_v5",
-    name: "Actualizaciones",
-    description: "Novedades y avisos generales",
-    importance: 3,
-    visibility: 1,
-    soundAndroid: "default",
-    soundIOS: "default",
-    vibration: false,
-    lights: false,
-  },
+  message: baseChannel("Mensajes", "Nuevos mensajes de clientes"),
+  whatsapp: baseChannel("WhatsApp", "Mensajes entrantes de WhatsApp"),
+  appointment_new: baseChannel("Nueva cita", "Se ha creado una cita nueva"),
+  appointment_update: baseChannel("Cambios de cita", "Actualizaciones o cancelaciones de citas", 4),
+  payment: baseChannel("Pagos", "Confirmaciones y recibos de pago"),
+  update: baseChannel("Actualizaciones", "Novedades y avisos generales", 3),
 };
 
-export const ALL_CHANNELS: ChannelConfig[] = Object.values(NOTIFICATION_CHANNELS);
+export const ALL_CHANNELS: ChannelConfig[] = [
+  baseChannel("Notificaciones Hanging360", "Avisos de citas, mensajes y pagos"),
+];
 
-// Canal genérico legacy (retro-compat)
-export const LEGACY_CHANNEL_ID = "hanging360_alerts_v5";
+// Canal genérico legacy (retro-compat con backend antiguo)
+export const LEGACY_CHANNEL_ID = STABLE_CHANNEL_ID;
 
 export function resolveTypeFromPayload(payload: any): NotificationType {
   const raw =
