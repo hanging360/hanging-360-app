@@ -11,12 +11,14 @@ let package = Package(
             targets: ["CapApp-SPM"])
     ],
     dependencies: [
-        .package(url: "https://github.com/ionic-team/capacitor-swift-pm.git", exact: "8.4.1"),
+        .package(url: "https://github.com/ionic-team/capacitor-swift-pm.git", exact: "8.1.0"),
+        .package(name: "CapacitorApp", path: "../../../node_modules/@capacitor/app"),
         .package(name: "CapacitorBrowser", path: "../../../node_modules/@capacitor/browser"),
+        .package(name: "CapacitorKeyboard", path: "../../../node_modules/@capacitor/keyboard"),
+        .package(name: "CapacitorLocalNotifications", path: "../../../node_modules/@capacitor/local-notifications"),
         .package(name: "CapacitorPushNotifications", path: "../../../node_modules/@capacitor/push-notifications"),
         .package(name: "CapacitorSplashScreen", path: "../../../node_modules/@capacitor/splash-screen"),
-        .package(name: "CapacitorLocalNotifications", path: "../../../node_modules/@capacitor/local-notifications"),
-        .package(name: "CapacitorApp", path: "../../../node_modules/@capacitor/app"),
+        .package(name: "CapacitorStatusBar", path: "../../../node_modules/@capacitor/status-bar"),
         .package(name: "CapawesomeCapacitorBadge", path: "../../../node_modules/@capawesome/capacitor-badge"),
         .package(name: "CapacitorNativeSettings", path: "../../../node_modules/capacitor-native-settings")
     ],
@@ -26,11 +28,13 @@ let package = Package(
             dependencies: [
                 .product(name: "Capacitor", package: "capacitor-swift-pm"),
                 .product(name: "Cordova", package: "capacitor-swift-pm"),
+                .product(name: "CapacitorApp", package: "CapacitorApp"),
                 .product(name: "CapacitorBrowser", package: "CapacitorBrowser"),
+                .product(name: "CapacitorKeyboard", package: "CapacitorKeyboard"),
+                .product(name: "CapacitorLocalNotifications", package: "CapacitorLocalNotifications"),
                 .product(name: "CapacitorPushNotifications", package: "CapacitorPushNotifications"),
                 .product(name: "CapacitorSplashScreen", package: "CapacitorSplashScreen"),
-                .product(name: "CapacitorLocalNotifications", package: "CapacitorLocalNotifications"),
-                .product(name: "CapacitorApp", package: "CapacitorApp"),
+                .product(name: "CapacitorStatusBar", package: "CapacitorStatusBar"),
                 .product(name: "CapawesomeCapacitorBadge", package: "CapawesomeCapacitorBadge"),
                 .product(name: "CapacitorNativeSettings", package: "CapacitorNativeSettings")
             ]
