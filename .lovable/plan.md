@@ -1,72 +1,87 @@
+## Objetivo
+
+Arreglar dos regresiones en la app nativa (iOS + Android):
+
+1. Después del login, la sesión y la configuración por dispositivo del portal remoto (`tech.hanging360.com`) se pierden: micrófono queda apagado, la burbuja del asistente "Cesar AI" vuelve a la posición por defecto y "recordarme" no funciona.
+2. Desde que se agregaron los sonidos personalizados (`message.mp3`, `whatsapp.mp3`, `appointment.mp3`, `payment.mp3`) las notificaciones dejaron de sonar; incluso el default de Apple/Android ya no suena.
+
+Todo debe funcionar con la build actual **sin depender de una nueva versión en las stores para el punto 2** (volvemos al sonido por defecto ya).
+
+---
+
 ## Diagnóstico
 
-**1. Franja blanca entre el teclado y el diálogo (iOS y Android)**
-El WebView nativo tiene dos capas apiladas: el shell (`AppShell`) y dentro un `<iframe>` que carga el portal remoto.
-- En `src/index.css`, `.webview-iframe` tiene `padding-top/bottom/left/right: env(safe-area-inset-*)` con `background:#ffffff` detrás. Ese padding queda visible como un rectángulo blanco cuando el teclado se abre y el WebView se redimensiona.
-- No hay `@capacitor/keyboard` instalado ni configurado, así que iOS/Android no avisan al WebView cómo comprimirse cuando aparece el teclado. Resultado: el iframe conserva alto viejo y el padding-bottom queda visible como "cuadro blanco" empujando el input hacia arriba.
+**Persistencia de sesión / ajustes de usuario**
 
-**2. La app dejó de sonar**
-- `resolveTypeFromPayload` cae a `"update"` cuando el backend no manda `type/category/channel_id`. El canal `update` usa `update.mp3`, que dura 0.06 s (constatado en el turno anterior) → inaudible en la práctica.
-- El canal legacy `hanging360_alerts_v3` se crea con `sound:"default"` pero solo se usa si el push especifica ese `channel_id`; los push genéricos siguen cayendo en `update`.
-- En Android, una vez creado un canal con un sonido concreto, ese sonido queda "congelado"; si el MP3 no se empaquetó bien en `res/raw`, el canal queda mudo para siempre. Los archivos existen en `android/app/src/main/res/raw/`, así que el fix es cambiar el sonido por uno audible y forzar la recreación del canal (bump `_v3` → `_v4`).
+El shell nativo carga `tech.hanging360.com/my-appointment` dentro de un `<iframe>` desde una página local (`dist/index.html`). En iOS WKWebView, y en Android WebView cuando el contenido embebido es de otro origen, el almacenamiento del iframe (cookies, `localStorage`, `IndexedDB`) se trata como *third-party* y se aísla o se borra al cerrar la app. Eso explica exactamente lo que describes:
 
-## Cambios propuestos
+- El token de Supabase (`persistSession: true` en el portal) vive en el `localStorage` del origen `tech.hanging360.com`. Como es third-party dentro del iframe, iOS lo purga → hay que volver a hacer login.
+- Los ajustes por dispositivo del portal (mic on/off, posición de la burbuja Cesar AI, "recordarme") también viven en ese mismo `localStorage` → se resetean con cada arranque.
 
-### A) Eliminar la franja blanca
+Ya intentamos habilitar cookies/DomStorage en `MainActivity.java` y añadir `associated-domains` en iOS, pero eso no resuelve el aislamiento third-party del iframe.
 
-1. **`src/index.css`** — en `.webview-iframe`:
-   - Quitar los cuatro `padding: env(safe-area-inset-*)` y el `box-sizing`.
-   - Mantener el iframe a 100% x 100% sin padding.
-   - Mover el color de fondo del safe area a `.webview-screen` (que sí ocupa toda la pantalla incluyendo notch/home indicator), dejándolo `#ffffff` como está — así el notch se ve blanco pero sin bordes que "empujen" el contenido.
-   - `.webview-iframe { background: transparent; }` para no pintar sobre el fondo.
+**Sonidos**
 
-2. **`@capacitor/keyboard`** — instalar el plugin y añadirlo a `capacitor.config.ts`:
-   ```ts
-   Keyboard: {
-     resize: 'native',          // iOS: el WebView se ajusta
-     resizeOnFullScreen: true,  // Android: respeta immersive
-     style: 'light'
-   }
-   ```
-   Esto hace que iOS/Android reduzcan la altura del WebView cuando el teclado sube, y como el iframe ya no tiene padding, no queda ninguna franja blanca entre el input del portal y el teclado.
+En `src/config/notificationChannels.ts` los canales `_v4` usan `soundAndroid: "message" | "whatsapp" | "appointment" | "payment"` y `soundIOS: "*.caf"`. En Android, si el recurso `res/raw/<sound>` no está disponible en el momento en que se crea el canal, el canal queda **mudo permanentemente** (Android congela el sonido del canal en la primera creación y no se puede cambiar sin desinstalar). Además el bump a `_v4` inutilizó los `_v3` que sí sonaban con el default. El resultado: notificaciones sin sonido en Android y iOS.
 
-3. **`AppShell.tsx`** — suscribirse a `Keyboard.addListener('keyboardWillShow'/'keyboardWillHide')` para actualizar `--app-height` restando `event.keyboardHeight` en iOS; en Android el resize nativo ya basta. Esto garantiza que el `visualViewport` recalcula y el iframe no se queda alto.
+---
 
-### B) Restaurar el sonido de las notificaciones
+## Plan de cambios
 
-1. **`src/config/notificationChannels.ts`**:
-   - Cambiar `LEGACY_CHANNEL_ID` a `hanging360_alerts_v4`.
-   - Bump de los 6 canales `_v3` → `_v4` para forzar recreación en dispositivos ya instalados.
-   - Canal `update`: cambiar `soundAndroid: "message"` / `soundIOS: "message.caf"` (el `update.mp3` de 0.06 s es inaudible; usamos `message` que sí es audible mientras el usuario no provea otro archivo).
-   - Cambiar el fallback de `resolveTypeFromPayload` de `"update"` → `"message"` para que cualquier push sin `type` suene con el canal `message` audible.
+### A. Volver ya al sonido por defecto (sin esperar nueva release)
 
-2. **`src/services/pushNotifications.ts`** — el canal legacy también debe crearse con `sound:"default"` (ya está) y con importancia 5; verificar que se usa `resolveTypeFromPayload` incluso cuando el push llega en foreground iOS (hoy solo Android agenda `LocalNotifications`; en iOS presentation options ya lo cubre).
+Objetivo: que la app vuelva a sonar con el tono del sistema en las builds ya instaladas y en las nuevas, mientras se preparan los sonidos custom bien empaquetados para la próxima subida a stores.
 
-3. **`src/services/webBridge.ts`** — la migración `hanging360_notification_channels_v3` pasa a `..._v4`, y la lista `legacyIds` a borrar incluye todos los `_v3` para que Android recree los canales con el nuevo sonido audible.
+1. `src/config/notificationChannels.ts`
+   - Cambiar `soundAndroid` de todos los canales a `"default"`.
+   - Cambiar `soundIOS` de todos los canales a `"default"`.
+   - Bump de IDs de `_v4` a `_v5` (Android exige un ID nuevo para que el sonido del canal cambie).
+2. `src/services/webBridge.ts`
+   - Añadir los IDs `_v4` a la lista `legacyIds` para eliminarlos en la migración.
+   - Cambiar la `migrationKey` a `hanging360_notification_channels_v5`.
+   - En `createChannel`, pasar `sound: "default"` (no `${name}.mp3`).
+   - En `HANGING360_TEST_LOCAL_NOTIFICATION`, dejar `sound: undefined` para que use el default del canal.
+3. `src/services/pushNotifications.ts`
+   - Actualizar `LEGACY_CHANNEL_ID` a `hanging360_alerts_v5` y forzar `sound: "default"` al programar `LocalNotifications`.
+4. `android/app/src/main/java/com/hanging360/app/MainActivity.java`
+   - Renombrar `CHANNEL_ID` a `hanging360_alerts_v5` para que coincida con TS.
+5. `android/app/src/main/AndroidManifest.xml`
+   - Actualizar `com.google.firebase.messaging.default_notification_channel_id` a `hanging360_alerts_v5`.
+6. `capacitor.config.ts`
+   - Dejar `LocalNotifications.sound: 'default'` (ya está) y quitar cualquier ruta a `.caf`/`.mp3` en `PushNotifications`.
 
-4. **`capacitor.config.ts`** — `LocalNotifications.sound` se deja en `"default"` (fallback general) y `PushNotifications.presentationOptions` mantiene `['badge','sound','alert']`.
+Con esto, en el próximo arranque de la app instalada, los canales viejos se borran y se recrean nuevos con sonido del sistema garantizado en Android e iOS. **No requiere subir nueva versión a stores para las builds futuras**; los usuarios que ya tengan la app instalada recibirán el fix al actualizarla desde la store en el próximo release (Android no permite modificar sonido de un canal ya creado sin cambiar el ID, por eso el bump a `_v5`).
 
-### C) Verificación
+### B. Persistir sesión y ajustes del portal remoto
 
-- `npm run build && npx cap sync` local.
-- Probar en Android: enviar push sin `type` → debe sonar con `message.mp3`.
-- Probar en iOS: abrir cualquier input dentro de WhatsApp-like/portal → no debe aparecer franja blanca entre teclado y campo.
-- Confirmar en dispositivo que los canales viejos `_v3` desaparecen de Ajustes → Notificaciones y aparecen los `_v4` con el sonido correcto.
+Causa raíz: el portal se carga en un `<iframe>` de tercer origen dentro del WebView; iOS/Android lo aíslan.
 
-## Detalles técnicos
+Opción recomendada (mínimo cambio, resuelve las dos quejas):
 
-- Los archivos `res/raw/*.mp3` ya están presentes y en minúsculas, cumplen las reglas de Android.
-- No se cambia `applicationId`, `versionCode`, ni `codemagic.yaml`.
-- No hay cambios en Supabase ni en el portal remoto.
-- Para el portal remoto (`tech.hanging360.com`) no se requiere ningún cambio: la corrección del teclado es 100 % en el shell nativo.
+1. `capacitor.config.ts`
+   - Añadir `server.url = "https://tech.hanging360.com/my-appointment"` y `server.allowNavigation = ["tech.hanging360.com"]`.
+   - Esto hace que el WebView cargue el portal como *first-party*, no como iframe embebido. Cookies, `localStorage`, IndexedDB y el token de Supabase persisten normalmente entre sesiones. Ajustes de mic, Cesar AI bubble y "recordarme" quedan guardados.
+2. `src/components/AppShell.tsx`
+   - Simplificar: cuando `isNativePlatform()` sea true, ya no renderiza el `<iframe>` (el WebView carga directamente el portal). Solo mantiene la inicialización de push y el bridge vía `window.postMessage` al `window` actual.
+3. `src/services/webBridge.ts` / `pushNotifications.ts`
+   - Cambiar `targetWindowRef` para que apunte a `window` (mismo origen ahora) y usar `"*"` u origen `https://tech.hanging360.com` en `postMessage`. El puente sigue funcionando igual desde la web.
+4. `ios/App/App/Info.plist` y `android/app/src/main/AndroidManifest.xml`
+   - Confirmar que `NSAppTransportSecurity` y el `usesCleartextTraffic=false` permiten HTTPS a `tech.hanging360.com` (ya lo permiten).
 
-## Archivos a modificar
+Efecto colateral aceptable: al cargar directo se pierde el pequeño overlay/spinner del shell, pero se gana persistencia total y menos latencia.
 
-- `src/index.css`
-- `capacitor.config.ts`
-- `package.json` (añadir `@capacitor/keyboard`)
-- `src/components/AppShell.tsx`
-- `src/lib/capacitorPlugins.ts` (exportar `Keyboard`)
-- `src/config/notificationChannels.ts`
-- `src/services/webBridge.ts`
-- `src/services/pushNotifications.ts`
+Alternativa si prefieres mantener el iframe: no hay solución 100% fiable para third-party storage en WKWebView; habría que reescribir el portal para exponer `WKScriptMessageHandler` y guardar la sesión en Keychain nativo. Es un cambio mucho mayor y no lo recomiendo.
+
+---
+
+## Verificación
+
+- **Sonido**: al instalar la nueva build, disparar una push de prueba de cada tipo (`message`, `whatsapp`, `appointment_new`, `appointment_update`, `payment`, `update`) y confirmar que suena el tono del sistema en Android y iOS, foreground y background.
+- **Sesión**: iniciar sesión con "recordarme", cerrar la app por completo (swipe), reabrir → debe entrar directo sin pedir login. Mover la burbuja Cesar AI y apagar el micrófono, cerrar y reabrir → deben mantenerse.
+
+---
+
+## Fuera de alcance
+
+- Volver a activar sonidos personalizados: se hará en una release posterior empaquetando correctamente los `res/raw/*.mp3` y los `.caf` en el bundle iOS, verificando con `aapt dump resources` que los archivos existen antes de crear los canales `_v6`.
+- Cambios en el portal remoto (`app-hanging360`).
