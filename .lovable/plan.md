@@ -1,50 +1,51 @@
-## Contexto
+## Problema confirmado
 
-Tienes razón: la app instalada carga `https://tech.hanging360.com/my-appointment` vía `server.url`. Eso significa que **casi todo cambia solo actualizando la PWA** — no hace falta un nuevo IPA/AAB salvo que se modifique algo realmente nativo (permisos nuevos en `Info.plist`/`AndroidManifest`, canales de notificación con sonidos empaquetados, iconos, `capacitor.config.ts`, versiones de plugins, o `server.url`).
+El IPA/AAB abre `https://tech.hanging360.com/my-appointment` directamente mediante `server.url`. Por eso el `AppShell` local, que contiene `initPushNotifications()` y el bridge por iframe, **nunca se ejecuta**. La PWA intenta detectar ese bridge inexistente y muestra “This version doesn't include push”. También hay una incompatibilidad de canales: la PWA envía/crea `h360_default`, mientras el binario declara `hanging360_alerts`.
 
-El problema actual de sonido/notificaciones/badges viene de mezclar dos capas:
+## Plan de corrección
 
-1. **Sonidos in-app (ring, toast, alerta dentro de la app abierta)** → los reproduce la PWA con `HTMLAudioElement`. Si dejó de sonar, es código web, no Capacitor.
-2. **Push notifications del sistema (con la app cerrada o en background)** → las entrega FCM/APNs. El sonido lo controla el **canal Android** (fijo al momento de crearse) y el **payload iOS** (`sound: "default"`). El shell nativo solo expone el bridge; el disparador es el backend.
+1. **Usar la arquitectura real: PWA superior + plugins Capacitor directos**
+   - En el proyecto **Hanging360 Tech 1**, eliminar la dependencia del handshake por iframe cuando `Capacitor.isNativePlatform()` sea verdadero.
+   - Inicializar `PushNotifications` directamente desde la PWA cargada por `server.url`.
+   - Mantener el bridge `postMessage` solamente como compatibilidad con shells antiguos que sí usen iframe.
 
-Lo que ha estado rompiendo el sonido son los "bumps" de canal (`_v2 → _v3 → _v4 → _v5`) que hago desde el shell. Cada bump crea un canal nuevo en Android; si el backend sigue enviando al ID viejo o al nuevo sin coincidir, no suena. Y en iOS los `.caf` que agregué al bundle requieren rebuild del IPA.
+2. **Unificar registro y almacenamiento del dispositivo**
+   - Registrar APNs/FCM después del login y también al reabrir la app.
+   - Guardar el token directamente en una sola tabla activa y asociarlo al usuario/dispositivo; eliminar la bifurcación inconsistente entre `push_tokens` y `device_tokens` en el flujo principal.
+   - Reintentar el registro cuando la app vuelva al foreground o cambie la sesión.
+   - Mostrar el estado real del plugin y del permiso, evitando “unsupported” cuando el plugin sí está incluido.
 
-## Plan (sin tocar nada nativo, sin nuevo IPA/AAB)
+3. **Unificar el sonido de sistema sin depender de archivos personalizados**
+   - Usar un único channel ID Android: `hanging360_alerts`, igual al manifiesto y al canal creado por `MainActivity`.
+   - Enviar `sound: "default"`, prioridad alta, vibración y badge desde FCM.
+   - Enviar `aps.sound: "default"`, alerta y badge desde APNs.
+   - Retirar del flujo activo `h360_default` y los canales custom que pueden quedar silenciosos si el recurso no coincide.
 
-### 1. Congelar el shell nativo
-- **No más bumps de canal.** Fijar un único ID estable: `hanging360_alerts` (sin sufijo `_vN`) con `sound: "default"` en Android/iOS.
-- **No más archivos de sonido empaquetados.** Quitar dependencia de `.caf`/`.mp3` en `res/raw` y en el bundle iOS para que el sonido sea el default del sistema (funciona sin rebuild).
-- Dejar de mutar `capacitor.config.ts`, `Info.plist`, `AndroidManifest.xml`, `AppDelegate.swift`, `MainActivity.java`. La versión actual instalada queda como "shell final".
+4. **Restaurar todos los sonidos dentro de la PWA**
+   - Mantener audio web para new email, new message, new appointment, new payment y llamada entrante.
+   - Conectar cada evento Realtime/llamada con su tipo de sonido; actualmente no existe una ruta encontrada para sonido de llamada entrante.
+   - Desbloquear audio en el primer gesto del usuario y conservar un fallback audible con Web Audio cuando el MP3 falle.
+   - Añadir controles independientes en Profile para mensajes/email, citas, pagos, llamadas, silenciar todo y prueba de sonido.
 
-### 2. Mover toda la lógica de notificaciones a la PWA
-La PWA (proyecto tech.hanging360.com) ya recibe el token vía `postMessage` del shell. Desde ahí controla todo sin rebuild:
+5. **Corregir persistencia de credenciales y ajustes del dispositivo**
+   - Hacer que “Recordarme” guarde la sesión en Capacitor Preferences y que las rotaciones del refresh token actualicen ese respaldo.
+   - Restaurar sesión antes de concluir que el usuario está desconectado; no limpiar el respaldo por fallos transitorios.
+   - Persistir preferencias de sonido, micrófono y configuración del dispositivo por usuario; el permiso real del micrófono siempre se leerá del sistema operativo, no de un booleano local.
 
-- **Sonido in-app / ring de llamada / toast:** `new Audio('/sounds/xxx.mp3').play()` dentro de la PWA. Se cambia editando la web.
-- **Badge:** `postMessage({ type: 'HANGING360_SET_BADGE', count })` al shell (bridge ya existe).
-- **Push del sistema:** el backend (edge function de la PWA) envía a FCM/APNs con:
-  - Android: `android.notification.channel_id = "hanging360_alerts"`, `sound = "default"`
-  - iOS: `aps.sound = "default"`, `aps.badge = N`, `aps.alert = {...}`
+6. **Validación completa**
+   - Probar desde Profile: permiso push real, micrófono, canal, badge, notificación local y cada sonido.
+   - Verificar registro del token y ejecución de la función push con logs reales.
+   - Confirmar payload Android/iOS con sonido default y que los eventos foreground generan sonido/toast.
+   - Confirmar cierre/reapertura conservando login y preferencias.
 
-### 3. Limpiar el bridge del shell
-- `src/services/webBridge.ts`: eliminar migraciones de canales `_v2/_v3/_v4/_v5`. Crear una sola vez el canal `hanging360_alerts` con sonido default.
-- `src/config/notificationChannels.ts`: reducir a un canal estable.
-- `MainActivity.java`: alinear el ID al mismo `hanging360_alerts`.
-- Estos son cambios web (webBridge.ts) + un único cambio Android (constante del channel ID). El Android sí requiere **un último AAB** para dejar el ID estable; después nunca más.
+## Alcance nativo
 
-### 4. Documentar para la PWA
-Actualizar `NOTIFICATIONS_SETUP.md` con:
-- ID de canal único: `hanging360_alerts`
-- Payload FCM/APNs de referencia con `sound: "default"`
-- Cómo disparar sonido in-app desde la web con `HTMLAudioElement`
-- Cómo llamar al bridge para badge/permisos
+La mayor parte se corrige publicando la **PWA**, sin review de stores. Si la versión instalada ya contiene los plugins Capacitor (el código confirma que están en las dependencias), no debería requerir otro IPA/AAB. Solo se considerará rebuild si la prueba en dispositivo demuestra que el plugin no fue realmente sincronizado dentro del binario distribuido.
 
-### 5. Qué SÍ requiere rebuild (para tenerlo claro a futuro)
-Solo estos casos justifican nuevo IPA/AAB:
-- Cambiar `server.url`, `appId`, permisos nuevos, plugin nuevo, icono/splash, o versión de Capacitor.
-- Añadir un sonido custom empaquetado (por eso lo evitamos y usamos `default`).
+<presentation-actions>
+  <presentation-open-history>View History</presentation-open-history>
+</presentation-actions>
 
-Todo lo demás — textos, botones, lógica, sonidos in-app reproducidos por `<audio>`, badges, contenido de las notificaciones — se cambia editando la PWA y se ve al abrir la app sin pasar por App Store/Play Store.
-
-## Confirmación antes de implementar
-
-¿Procedo con esto? Implica **un último rebuild AAB (Android)** para fijar el channel ID estable y quitar los `_vN`. iOS no necesita rebuild si el payload usa `sound: "default"` (ya está configurado así). Después de eso, todo el trabajo de notificaciones/sonido se hace en el proyecto de la PWA.
+<presentation-actions>
+<presentation-link url="https://docs.lovable.dev/tips-tricks/troubleshooting">Troubleshooting docs</presentation-link>
+</presentation-actions>
