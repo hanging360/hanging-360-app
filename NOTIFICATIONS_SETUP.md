@@ -5,7 +5,13 @@ Toda la lógica de notificaciones vive en la PWA. El shell nativo solo expone:
 
 - Un único **channel ID estable**: `hanging360_alerts` (Android)
 - Sonido = `default` del sistema (no requiere archivos empaquetados)
+- `@capacitor/preferences` para conservar sesión y ajustes del dispositivo
 - Bridge `postMessage` para badge y permisos
+
+La PWA se carga como documento principal mediante `server.url`, por lo que
+debe usar directamente los plugins Capacitor cuando
+`Capacitor.isNativePlatform()` sea `true`. El bridge por `postMessage` queda
+solo para compatibilidad con shells antiguos que usaban un iframe.
 
 ## Payload FCM (Android)
 
@@ -67,6 +73,10 @@ window.parent?.postMessage({ type: "HANGING360_REQUEST_PERMISSIONS" }, "*");
 Solo cambios nativos:
 - `capacitor.config.ts`, `Info.plist`, `AndroidManifest.xml`, plugins nuevos,
   iconos/splash, versión de Capacitor, permisos nuevos, `server.url`.
+
+La incorporación de `@capacitor/preferences` requiere un último IPA/AAB. Este
+plugin es el respaldo persistente que la PWA ya usa para refresh tokens y
+preferencias; sin él, esas llamadas fallan y el usuario vuelve a login.
 
 Todo lo demás (contenido de notificaciones, sonidos in-app, badges, lógica) se
 cambia editando la PWA y aparece al reabrir la app sin pasar por App Store/Play.
