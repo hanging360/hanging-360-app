@@ -6,6 +6,7 @@ const config: CapacitorConfig = {
   webDir: 'dist',
   server: {
     cleartext: false,
+    url: 'https://tech.hanging360.com/my-appointment',
     allowNavigation: ['tech.hanging360.com']
   },
   plugins: {

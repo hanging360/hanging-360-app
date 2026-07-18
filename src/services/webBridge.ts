@@ -45,22 +45,29 @@ export async function registerAllChannels() {
   // Android freezes a channel's sound after first creation. Remove the old,
   // potentially silent channels once, then recreate aliases for older backend
   // payloads while all senders migrate to the v3 IDs.
-  const migrationKey = "hanging360_notification_channels_v4";
+  const migrationKey = "hanging360_notification_channels_v5";
   const legacyIds = [
     "hanging360_alerts_v2",
     "hanging360_alerts_v3",
+    "hanging360_alerts_v4",
     "hanging360_message",
     "hanging360_message_v3",
+    "hanging360_message_v4",
     "hanging360_whatsapp",
     "hanging360_whatsapp_v3",
+    "hanging360_whatsapp_v4",
     "hanging360_appointment_new",
     "hanging360_appointment_new_v3",
+    "hanging360_appointment_new_v4",
     "hanging360_appointment_update",
     "hanging360_appointment_update_v3",
+    "hanging360_appointment_update_v4",
     "hanging360_payment",
     "hanging360_payment_v3",
+    "hanging360_payment_v4",
     "hanging360_update",
     "hanging360_update_v3",
+    "hanging360_update_v4",
   ];
   if (window.localStorage.getItem(migrationKey) !== "done") {
     for (const id of legacyIds) {
@@ -70,7 +77,7 @@ export async function registerAllChannels() {
 
   const compatibilityChannels = ALL_CHANNELS.map((channel) => ({
     ...channel,
-    id: channel.id.replace(/_v4$/, ""),
+    id: channel.id.replace(/_v5$/, ""),
     name: `${channel.name} (compatibilidad)`,
   }));
 
@@ -82,7 +89,7 @@ export async function registerAllChannels() {
         description: c.description,
         importance: c.importance,
         visibility: c.visibility,
-        sound: c.soundAndroid === "default" ? "default" : `${c.soundAndroid}.mp3`,
+        sound: "default",
         vibration: c.vibration,
         lights: c.lights,
       });
@@ -146,9 +153,7 @@ async function handle(msg: InMsg) {
               body: "Notificación de prueba desde ajustes",
               channelId: platform === "android" ? cfg.id : undefined,
               smallIcon: "ic_stat_icon",
-              sound: platform === "ios"
-                ? cfg.soundIOS
-                : `${cfg.soundAndroid}.mp3`,
+              sound: undefined,
               extra: { type: t, category: t },
             },
           ],

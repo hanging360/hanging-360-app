@@ -113,7 +113,7 @@ export async function initPushNotifications(targetWindow?: Window | null) {
           body,
           channelId: cfg.id,
           smallIcon: "ic_stat_icon",
-          sound: cfg.soundAndroid === "default" ? undefined : `${cfg.soundAndroid}.mp3`,
+          sound: undefined,
           extra: n.data ?? {},
         }],
       });
