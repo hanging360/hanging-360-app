@@ -29,8 +29,13 @@ const config: CapacitorConfig = {
       iconColor: '#000000',
       sound: 'default'
     },
+    StatusBar: {
+      overlaysWebView: false,
+      style: 'dark',
+      backgroundColor: '#ffffffff'
+    },
     Keyboard: {
-      resize: 'native',
+      resize: 'body',
       resizeOnFullScreen: true,
       style: 'light'
     }
