@@ -1,40 +1,50 @@
-## Do I know what the issue is?
+## Contexto
 
-Sí. La configuración actual de Capacitor carga `https://tech.hanging360.com/my-appointment` directamente como documento principal mediante `server.url`. Por eso los ajustes anteriores en `AppShell.tsx` y `src/index.css` no se ejecutan en la app instalada.
+Tienes razón: la app instalada carga `https://tech.hanging360.com/my-appointment` vía `server.url`. Eso significa que **casi todo cambia solo actualizando la PWA** — no hace falta un nuevo IPA/AAB salvo que se modifique algo realmente nativo (permisos nuevos en `Info.plist`/`AndroidManifest`, canales de notificación con sonidos empaquetados, iconos, `capacitor.config.ts`, versiones de plugins, o `server.url`).
 
-Hay dos problemas nativos distintos:
+El problema actual de sonido/notificaciones/badges viene de mezclar dos capas:
 
-1. `Keyboard.resize: 'native'` redimensiona el WKWebView completo mientras el portal remoto también ajusta su layout al teclado; esa combinación crea el segundo scroll y el gran espacio blanco.
-2. En iOS el status bar queda visible, pero no existe una configuración nativa explícita que controle si el WebView debe superponerse o colocarse debajo. El portal además conserva su propio espacio superior, produciendo la separación de casi media pulgada que se ve entre la línea visible del display y el header.
+1. **Sonidos in-app (ring, toast, alerta dentro de la app abierta)** → los reproduce la PWA con `HTMLAudioElement`. Si dejó de sonar, es código web, no Capacitor.
+2. **Push notifications del sistema (con la app cerrada o en background)** → las entrega FCM/APNs. El sonido lo controla el **canal Android** (fijo al momento de crearse) y el **payload iOS** (`sound: "default"`). El shell nativo solo expone el bridge; el disparador es el backend.
 
-## Plan de implementación
+Lo que ha estado rompiendo el sonido son los "bumps" de canal (`_v2 → _v3 → _v4 → _v5`) que hago desde el shell. Cada bump crea un canal nuevo en Android; si el backend sigue enviando al ID viejo o al nuevo sin coincidir, no suena. Y en iOS los `.caf` que agregué al bundle requieren rebuild del IPA.
 
-1. **Eliminar el doble ajuste del teclado**
-   - Cambiar `Keyboard.resize` de `native` a `body`, que redimensiona el cuerpo del portal sin encoger otra vez el WKWebView completo.
-   - Mantener `resizeOnFullScreen` solo como soporte de Android inmersivo.
-   - No modificar la barra pequeña con flechas y ✓ porque es el accesorio nativo normal de iOS; se corregirá únicamente el espacio blanco grande.
+## Plan (sin tocar nada nativo, sin nuevo IPA/AAB)
 
-2. **Corregir el espacio superior de iOS**
-   - Configurar explícitamente `StatusBar.overlaysWebView` para que el WebView comience debajo del status bar y no acumule un segundo margen/safe-area.
-   - Establecer el estilo/fondo del status bar de forma coherente con el header blanco.
-   - Aplicar el comportamiento equivalente en el arranque nativo de iOS para que funcione aunque `server.url` omita el shell React.
+### 1. Congelar el shell nativo
+- **No más bumps de canal.** Fijar un único ID estable: `hanging360_alerts` (sin sufijo `_vN`) con `sound: "default"` en Android/iOS.
+- **No más archivos de sonido empaquetados.** Quitar dependencia de `.caf`/`.mp3` en `res/raw` y en el bundle iOS para que el sonido sea el default del sistema (funciona sin rebuild).
+- Dejar de mutar `capacitor.config.ts`, `Info.plist`, `AndroidManifest.xml`, `AppDelegate.swift`, `MainActivity.java`. La versión actual instalada queda como "shell final".
 
-3. **Retirar compensaciones que ya no corresponden**
-   - Eliminar de `AppShell.tsx` la resta manual de `keyboardHeight` y sus listeners, evitando que el problema vuelva si más adelante se restaura el shell local.
-   - Simplificar las alturas del contenedor local para que dependan del viewport entregado por Capacitor, sin doble cálculo.
+### 2. Mover toda la lógica de notificaciones a la PWA
+La PWA (proyecto tech.hanging360.com) ya recibe el token vía `postMessage` del shell. Desde ahí controla todo sin rebuild:
 
-4. **Verificación**
-   - Confirmar la configuración nativa generada después del sync.
-   - Validar apertura/cierre repetido del teclado y cambio entre campos: no debe aparecer scroll inferior ni espacio blanco.
-   - Validar iPhone con notch/Dynamic Island: el header debe quedar inmediatamente debajo del área segura, sin hueco duplicado.
-   - Revisar Android para asegurar que el modo inmersivo y el teclado continúan funcionando.
+- **Sonido in-app / ring de llamada / toast:** `new Audio('/sounds/xxx.mp3').play()` dentro de la PWA. Se cambia editando la web.
+- **Badge:** `postMessage({ type: 'HANGING360_SET_BADGE', count })` al shell (bridge ya existe).
+- **Push del sistema:** el backend (edge function de la PWA) envía a FCM/APNs con:
+  - Android: `android.notification.channel_id = "hanging360_alerts"`, `sound = "default"`
+  - iOS: `aps.sound = "default"`, `aps.badge = N`, `aps.alert = {...}`
 
-Para probar el arreglo en la app instalada habrá que hacer `git pull`, `npm install`, `npm run build`, `npx cap sync` y generar un nuevo IPA/AAB.
+### 3. Limpiar el bridge del shell
+- `src/services/webBridge.ts`: eliminar migraciones de canales `_v2/_v3/_v4/_v5`. Crear una sola vez el canal `hanging360_alerts` con sonido default.
+- `src/config/notificationChannels.ts`: reducir a un canal estable.
+- `MainActivity.java`: alinear el ID al mismo `hanging360_alerts`.
+- Estos son cambios web (webBridge.ts) + un único cambio Android (constante del channel ID). El Android sí requiere **un último AAB** para dejar el ID estable; después nunca más.
 
-<presentation-actions>
-  <presentation-open-history>View History</presentation-open-history>
-</presentation-actions>
+### 4. Documentar para la PWA
+Actualizar `NOTIFICATIONS_SETUP.md` con:
+- ID de canal único: `hanging360_alerts`
+- Payload FCM/APNs de referencia con `sound: "default"`
+- Cómo disparar sonido in-app desde la web con `HTMLAudioElement`
+- Cómo llamar al bridge para badge/permisos
 
-<presentation-actions>
-<presentation-link url="https://docs.lovable.dev/tips-tricks/troubleshooting">Troubleshooting docs</presentation-link>
-</presentation-actions>
+### 5. Qué SÍ requiere rebuild (para tenerlo claro a futuro)
+Solo estos casos justifican nuevo IPA/AAB:
+- Cambiar `server.url`, `appId`, permisos nuevos, plugin nuevo, icono/splash, o versión de Capacitor.
+- Añadir un sonido custom empaquetado (por eso lo evitamos y usamos `default`).
+
+Todo lo demás — textos, botones, lógica, sonidos in-app reproducidos por `<audio>`, badges, contenido de las notificaciones — se cambia editando la PWA y se ve al abrir la app sin pasar por App Store/Play Store.
+
+## Confirmación antes de implementar
+
+¿Procedo con esto? Implica **un último rebuild AAB (Android)** para fijar el channel ID estable y quitar los `_vN`. iOS no necesita rebuild si el payload usa `sound: "default"` (ya está configurado así). Después de eso, todo el trabajo de notificaciones/sonido se hace en el proyecto de la PWA.
