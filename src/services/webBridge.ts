@@ -42,32 +42,17 @@ export async function registerAllChannels() {
   if (!isNativePlatform()) return;
   if (getPlatform() !== "android") return;
 
-  // Android freezes a channel's sound after first creation. Remove the old,
-  // potentially silent channels once, then recreate aliases for older backend
-  // payloads while all senders migrate to the v3 IDs.
-  const migrationKey = "hanging360_notification_channels_v5";
+  // Limpieza única de canales versionados antiguos. Después de esta migración
+  // usamos un único canal estable `hanging360_alerts` con sonido default.
+  const migrationKey = "hanging360_notification_channels_stable";
   const legacyIds = [
-    "hanging360_alerts_v2",
-    "hanging360_alerts_v3",
-    "hanging360_alerts_v4",
-    "hanging360_message",
-    "hanging360_message_v3",
-    "hanging360_message_v4",
-    "hanging360_whatsapp",
-    "hanging360_whatsapp_v3",
-    "hanging360_whatsapp_v4",
-    "hanging360_appointment_new",
-    "hanging360_appointment_new_v3",
-    "hanging360_appointment_new_v4",
-    "hanging360_appointment_update",
-    "hanging360_appointment_update_v3",
-    "hanging360_appointment_update_v4",
-    "hanging360_payment",
-    "hanging360_payment_v3",
-    "hanging360_payment_v4",
-    "hanging360_update",
-    "hanging360_update_v3",
-    "hanging360_update_v4",
+    "hanging360_alerts_v2", "hanging360_alerts_v3", "hanging360_alerts_v4", "hanging360_alerts_v5",
+    "hanging360_message", "hanging360_message_v3", "hanging360_message_v4", "hanging360_message_v5",
+    "hanging360_whatsapp", "hanging360_whatsapp_v3", "hanging360_whatsapp_v4", "hanging360_whatsapp_v5",
+    "hanging360_appointment_new", "hanging360_appointment_new_v3", "hanging360_appointment_new_v4", "hanging360_appointment_new_v5",
+    "hanging360_appointment_update", "hanging360_appointment_update_v3", "hanging360_appointment_update_v4", "hanging360_appointment_update_v5",
+    "hanging360_payment", "hanging360_payment_v3", "hanging360_payment_v4", "hanging360_payment_v5",
+    "hanging360_update", "hanging360_update_v3", "hanging360_update_v4", "hanging360_update_v5",
   ];
   if (window.localStorage.getItem(migrationKey) !== "done") {
     for (const id of legacyIds) {
@@ -75,13 +60,7 @@ export async function registerAllChannels() {
     }
   }
 
-  const compatibilityChannels = ALL_CHANNELS.map((channel) => ({
-    ...channel,
-    id: channel.id.replace(/_v5$/, ""),
-    name: `${channel.name} (compatibilidad)`,
-  }));
-
-  for (const c of [...ALL_CHANNELS, ...compatibilityChannels]) {
+  for (const c of ALL_CHANNELS) {
     try {
       await PushNotifications.createChannel?.({
         id: c.id,
