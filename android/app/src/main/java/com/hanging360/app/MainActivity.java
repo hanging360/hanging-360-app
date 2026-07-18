@@ -29,6 +29,20 @@ import java.util.List;
 public class MainActivity extends BridgeActivity {
 
     private static final String CHANNEL_ID = "hanging360_alerts";
+    // Compatibilidad con versiones ya publicadas de la PWA. Android fija el
+    // sonido la primera vez que crea cada channel ID; todos estos alias usan
+    // el tono predeterminado para evitar canales silenciosos por MP3 ausentes.
+    private static final String[] COMPAT_CHANNEL_IDS = {
+            "h360_default_sound_v2",
+            "h360_default",
+            "hanging360_message",
+            "hanging360_whatsapp",
+            "hanging360_appointment_new",
+            "hanging360_appointment_update",
+            "hanging360_payment",
+            "hanging360_call",
+            "hanging360_update"
+    };
     private static final int RUNTIME_PERMISSIONS_REQUEST = 360;
 
     @Override
@@ -90,11 +104,22 @@ public class MainActivity extends BridgeActivity {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
 
         NotificationManager nm = getSystemService(NotificationManager.class);
-        if (nm == null || nm.getNotificationChannel(CHANNEL_ID) != null) return;
+        if (nm == null) return;
+
+        createAudibleChannel(nm, CHANNEL_ID, "Notificaciones Hanging360");
+        for (String id : COMPAT_CHANNEL_IDS) {
+            createAudibleChannel(nm, id, "Notificaciones Hanging360");
+        }
+    }
+
+    private void createAudibleChannel(NotificationManager nm, String id, String name) {
+        // No modificar un canal existente: Android conserva la elección del
+        // usuario. Los canales nuevos siempre nacen con importancia alta.
+        if (nm.getNotificationChannel(id) != null) return;
 
         NotificationChannel channel = new NotificationChannel(
-                CHANNEL_ID,
-                "Notificaciones Hanging360",
+                id,
+                name,
                 NotificationManager.IMPORTANCE_HIGH);
         channel.setDescription("Avisos de citas y mensajes");
         channel.enableVibration(true);

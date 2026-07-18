@@ -37,8 +37,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
     }
 
     func applicationDidBecomeActive(_ application: UIApplication) {
-        // Limpiar el badge al volver a la app
-        application.applicationIconBadgeNumber = 0
+        // El contador pertenece al estado de notificaciones de la PWA. No se
+        // borra automáticamente al abrir la app; Badge.clear() lo hará cuando
+        // el usuario haya leído realmente las alertas.
     }
 
     func applicationWillTerminate(_ application: UIApplication) {
