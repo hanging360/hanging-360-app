@@ -76,7 +76,7 @@ workflows:
           grep -q '^package com.hanging360.app;' \
             android/app/src/main/java/com/hanging360/app/MainActivity.java \
             || (echo "MainActivity package does not match applicationId" && exit 1)
-          grep -q 'hanging360_alerts_v3' android/app/src/main/AndroidManifest.xml \
+          grep -q 'hanging360_alerts' android/app/src/main/AndroidManifest.xml \
             || (echo "Android default notification channel is stale" && exit 1)
 
       - name: Verify keystore is available
