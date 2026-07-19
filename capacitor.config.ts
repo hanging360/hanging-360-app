@@ -9,6 +9,9 @@ const config: CapacitorConfig = {
     url: 'https://tech.hanging360.com/my-appointment',
     allowNavigation: ['tech.hanging360.com']
   },
+  ios: {
+    contentInset: 'never'
+  },
   plugins: {
     SplashScreen: {
       launchShowDuration: 250,
