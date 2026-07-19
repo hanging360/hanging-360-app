@@ -1,6 +1,7 @@
 import UIKit
 import Capacitor
 import UserNotifications
+import WebKit
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterDelegate {
@@ -8,6 +9,12 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
     var window: UIWindow?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+        // Revalidate the remote Capacitor portal on every cold start without
+        // deleting WKWebsiteDataStore (cookies, localStorage, IndexedDB).
+        URLCache.shared.removeAllCachedResponses()
+        URLCache.shared.memoryCapacity = 0
+        URLCache.shared.diskCapacity = 0
+
         // Foreground push presentation: banner + sonido + badge
         let center = UNUserNotificationCenter.current()
         center.delegate = self
@@ -19,6 +26,18 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
             UNNotificationCategory(identifier: $0, actions: [], intentIdentifiers: [], options: [])
         })
         center.setNotificationCategories(categories)
+
+        DispatchQueue.main.async { [weak self] in
+            guard
+                let bridgeController = self?.window?.rootViewController as? CAPBridgeViewController,
+                let webView = bridgeController.bridge?.webView
+            else { return }
+            webView.configuration.websiteDataStore.httpCookieStore.getAllCookies { _ in
+                DispatchQueue.main.async {
+                    webView.reloadFromOrigin()
+                }
+            }
+        }
         return true
     }
 
