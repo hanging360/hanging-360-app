@@ -56,9 +56,21 @@ public class MainActivity extends BridgeActivity {
         settings.setDomStorageEnabled(true);
         settings.setDatabaseEnabled(true);
         settings.setSaveFormData(true);
+        // The portal is remote and its HTML must always be revalidated. This
+        // clears only WebView's HTTP/resource cache; cookies, localStorage and
+        // IndexedDB remain intact so login and device settings are preserved.
+        settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
+        webView.clearCache(true);
         CookieManager cookies = CookieManager.getInstance();
         cookies.setAcceptCookie(true);
         cookies.setAcceptThirdPartyCookies(webView, true);
+
+        // Re-request the configured server.url after Capacitor finishes its
+        // initial navigation. Posting avoids racing BridgeActivity startup.
+        webView.post(() -> {
+            webView.getSettings().setCacheMode(WebSettings.LOAD_NO_CACHE);
+            webView.reload();
+        });
 
         // Draw behind system bars so the WebView fills the entire screen
         WindowCompat.setDecorFitsSystemWindows(getWindow(), false);

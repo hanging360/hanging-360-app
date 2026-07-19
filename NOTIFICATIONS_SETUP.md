@@ -3,13 +3,13 @@
 La app Capacitor es un shell que carga `https://tech.hanging360.com/my-appointment`.
 Toda la lógica de notificaciones vive en la PWA. El shell nativo solo expone:
 
-## ⚠️ Actualización remota del WebView (sin rebuild IPA/AAB)
+## ⚠️ Actualización remota del WebView
 
-El shell nativo ya está publicado y **no se reconstruye**. Todos los fixes
-(teclado, sonidos, layout de chat) llegan al usuario final por deploy de la
-PWA. Si la app instalada sigue mostrando la versión vieja tras un deploy,
-es porque el WebView sirve HTML/JS cacheado. Todo esto se resuelve en el
-**proyecto Hanging360 Tech 1** (la PWA), no en el shell.
+El shell fuerza revalidación del portal remoto en cada arranque en Android e
+iOS, sin borrar cookies, `localStorage`, IndexedDB ni credenciales. Esta
+protección nativa requiere un último `npx cap sync` y rebuild de IPA/AAB.
+Después de instalar esa versión, los fixes de contenido llegan por deploy de
+la **PWA Hanging360 Tech 1** sin nuevos builds de las tiendas.
 
 ### 1. Service Worker
 Auditar `tech.hanging360.com` en busca de `sw.js` / `service-worker.js` /
@@ -33,9 +33,14 @@ en cada `visibilitychange → visible`, hacer fetch con
 `cache: 'no-store'`; si difiere de la versión en memoria, un único
 `location.reload()` (guardar el sha en `sessionStorage` para evitar loops).
 
+**Estado comprobado el 19 de julio de 2026:** `/version.json` responde 404.
+La actualización automática al volver al foreground no queda completa hasta
+publicar este archivo con `Cache-Control: no-store` en Hanging360 Tech 1.
+
 ### 4. Recuperación de usuarios ya afectados
-Al primer arranque con red, el kill-switch + los headers los ponen al día
-sin reinstalar. No requiere acción del usuario.
+El kill-switch y los headers actualizan a quienes ya reciben la PWA nueva. Si
+el WebView instalado continúa usando recursos antiguos, instalar una vez el
+shell con la política nativa de no-cache; no borra la sesión del usuario.
 
 - Un único **channel ID estable**: `hanging360_alerts` (Android)
 - Sonido = `default` del sistema (no requiere archivos empaquetados)
@@ -144,6 +149,8 @@ preferencias; sin él, esas llamadas fallan y el usuario vuelve a login.
 
 Todo lo demás (contenido de notificaciones, sonidos in-app, badges, lógica) se
 cambia editando la PWA y aparece al reabrir la app sin pasar por App Store/Play.
+La política nativa de revalidación agregada en este repositorio sí necesita un
+último build; no puede incorporarse a binarios que ya están instalados.
 
 ## Forzar recarga del WebView al hacer login (PWA)
 
