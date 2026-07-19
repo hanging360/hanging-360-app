@@ -144,3 +144,79 @@ preferencias; sin él, esas llamadas fallan y el usuario vuelve a login.
 
 Todo lo demás (contenido de notificaciones, sonidos in-app, badges, lógica) se
 cambia editando la PWA y aparece al reabrir la app sin pasar por App Store/Play.
+
+## Forzar recarga del WebView al hacer login (PWA)
+
+El WebView de Capacitor cachea el bundle hasheado (`/assets/index-<hash>.js`).
+Cloudflare ya sirve `index.html` con `no-cache`, pero si el usuario no navega
+a una URL nueva, el WebView reutiliza el HTML cacheado y sigue apuntando al
+bundle viejo. Para que **cada login traiga la última versión**, la PWA debe
+forzar una recarga con cache-bust justo después de autenticar.
+
+### 1. Redirect post-login (obligatorio)
+
+En el handler donde `supabase.auth.signInWithPassword` resuelve OK — o dentro
+de `onAuthStateChange` cuando `event === 'SIGNED_IN'` y no sea un refresh
+silencioso:
+
+```ts
+const url = new URL(window.location.href);
+url.searchParams.set('v', Date.now().toString(36));
+window.location.replace(url.toString());
+```
+
+`location.replace` evita entrada en el historial. El query param `?v=...`
+obliga al WebView a resolver una URL nueva y a revalidar `index.html`, que
+viene con `Cache-Control: no-cache` → se descarga el bundle nuevo.
+
+### 2. Auto-recarga en foreground (recomendado)
+
+Publicar `/version.json` con el SHA del build:
+
+```json
+{ "version": "2026-07-19-abc123" }
+```
+
+En el cliente:
+
+```ts
+async function checkVersion() {
+  const res = await fetch('/version.json', { cache: 'no-store' });
+  const { version } = await res.json();
+  const known = sessionStorage.getItem('h360_version');
+  if (known && known !== version) {
+    const url = new URL(location.href);
+    url.searchParams.set('v', version);
+    location.replace(url.toString());
+    return;
+  }
+  sessionStorage.setItem('h360_version', version);
+}
+
+checkVersion();
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') checkVersion();
+});
+```
+
+### 3. Confirmar que el kill-switch de `/sw.js` sigue publicado
+
+Un release más con el service worker que hace `caches.delete(...)` +
+`registration.unregister()` para limpiar clientes que aún tengan SW viejo.
+
+### 4. Cache headers en Cloudflare
+
+- `index.html` → `Cache-Control: no-cache, must-revalidate` (ya OK).
+- `/assets/*` (hasheados) → `Cache-Control: public, max-age=31536000, immutable`.
+- `/version.json` → `Cache-Control: no-store`.
+
+### Validación
+
+1. Anotar hash actual del bundle (`/assets/index-<hash>.js`) desde
+   `https://tech.hanging360.com/my-appointment`.
+2. Deploy PWA con los cambios de arriba.
+3. En la app instalada: logout → login. El nuevo bundle debe cargarse
+   (verificable con Safari Web Inspector / `chrome://inspect`).
+4. Publicar otro deploy y traer la app al frente: debe recargar sola.
+
+No requiere rebuild del IPA/AAB.
