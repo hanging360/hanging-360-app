@@ -1,48 +1,12 @@
 import UIKit
 import Capacitor
-import UserNotifications
-import WebKit
 
 @UIApplicationMain
-class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterDelegate {
+class AppDelegate: UIResponder, UIApplicationDelegate {
 
     var window: UIWindow?
-    private var enteredBackgroundAt: Date?
-    private let foregroundRevalidateInterval: TimeInterval = 30
-
-    private func revalidateRemotePortal() {
-        guard
-            let bridgeController = window?.rootViewController as? CAPBridgeViewController,
-            let webView = bridgeController.bridge?.webView
-        else { return }
-
-        webView.configuration.websiteDataStore.httpCookieStore.getAllCookies { _ in
-            DispatchQueue.main.async {
-                webView.reloadFromOrigin()
-            }
-        }
-    }
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        // Revalidate the remote Capacitor portal on every cold start without
-        // deleting WKWebsiteDataStore (cookies, localStorage, IndexedDB).
-        URLCache.shared.removeAllCachedResponses()
-        URLCache.shared.memoryCapacity = 0
-        URLCache.shared.diskCapacity = 0
-
-        // Foreground push presentation: banner + sonido + badge
-        let center = UNUserNotificationCenter.current()
-        center.delegate = self
-        let categoryIds = [
-            "message", "whatsapp", "appointment_new",
-            "appointment_update", "payment", "update"
-        ]
-        let categories = Set(categoryIds.map {
-            UNNotificationCategory(identifier: $0, actions: [], intentIdentifiers: [], options: [])
-        })
-        center.setNotificationCategories(categories)
-
-        DispatchQueue.main.async { [weak self] in self?.revalidateRemotePortal() }
         return true
     }
 
@@ -54,7 +18,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
     func applicationDidEnterBackground(_ application: UIApplication) {
         // Use this method to release shared resources, save user data, invalidate timers, and store enough application state information to restore your application to its current state in case it is terminated later.
         // If your application supports background execution, this method is called instead of applicationWillTerminate: when the user quits.
-        enteredBackgroundAt = Date()
     }
 
     func applicationWillEnterForeground(_ application: UIApplication) {
@@ -62,14 +25,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
     }
 
     func applicationDidBecomeActive(_ application: UIApplication) {
-        // El contador pertenece al estado de notificaciones de la PWA. No se
-        // borra automáticamente al abrir la app; Badge.clear() lo hará cuando
-        // el usuario haya leído realmente las alertas.
-        if let backgroundDate = enteredBackgroundAt,
-           Date().timeIntervalSince(backgroundDate) >= foregroundRevalidateInterval {
-            enteredBackgroundAt = nil
-            revalidateRemotePortal()
-        }
     }
 
     func applicationWillTerminate(_ application: UIApplication) {
@@ -95,25 +50,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
 
     func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
         NotificationCenter.default.post(name: .capacitorDidFailToRegisterForRemoteNotifications, object: error)
-    }
-
-    // MARK: - UNUserNotificationCenterDelegate
-    // Mostrar banner + sonido + badge cuando la app está en foreground
-    func userNotificationCenter(_ center: UNUserNotificationCenter,
-                                willPresent notification: UNNotification,
-                                withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
-        if #available(iOS 14.0, *) {
-            completionHandler([.banner, .list, .sound, .badge])
-        } else {
-            completionHandler([.alert, .sound, .badge])
-        }
-    }
-
-    func userNotificationCenter(_ center: UNUserNotificationCenter,
-                                didReceive response: UNNotificationResponse,
-                                withCompletionHandler completionHandler: @escaping () -> Void) {
-        UIApplication.shared.applicationIconBadgeNumber = 0
-        completionHandler()
     }
 
 }

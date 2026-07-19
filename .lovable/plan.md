@@ -1,38 +1,49 @@
 ## Objetivo
-Hacer que la app Capacitor muestre la misma versión y el mismo comportamiento de teclado que `tech.hanging360.com`, sin el espacio blanco ni el desplazamiento doble.
+Dejar el shell nativo de Capacitor lo más "vacío" posible para que **todo** (teclado, sonidos, layout, versión) lo controle la PWA en `tech.hanging360.com`. Así, cambios futuros salen sin reconstruir IPA/AAB.
 
-## Diagnóstico confirmado
-- Capacitor abre directamente `https://tech.hanging360.com/my-appointment` mediante `server.url`.
-- Con esa arquitectura, `AppShell.tsx` y sus listeners/correcciones de teclado **no se ejecutan** dentro de la app instalada.
-- Android aplica simultáneamente `adjustResize`, WebView edge-to-edge y `Keyboard.resize: native`; esta combinación puede reajustar dos veces la página que ya maneja correctamente el teclado en web/PWA.
-- La comprobación remota tampoco está completa: `https://tech.hanging360.com/version.json` sigue devolviendo la página 404, no un archivo de versión.
+## Diagnóstico
+Hoy el shell nativo está imponiendo comportamiento sobre la PWA:
+- Configura el plugin `Keyboard` (resize/estilo) → colisiona con el manejo de teclado que ya hace bien la PWA.
+- Android usa `adjustResize` + edge-to-edge + inmersivo → segundo resize sobre el WebView.
+- iOS pone claves `KeyboardResize` en `Info.plist`.
+- `MainActivity` y `AppDelegate` crean canales de notificación, categorías y sonidos → la PWA no puede cambiarlos sin rebuild.
+- `LOAD_NO_CACHE` + `webView.reload()` / `reloadFromOrigin()` en cada arranque y foreground → fuerza recargas y afecta formularios/sesión, pero **no arregla** que Android/iOS cacheen HTML/JS por hashes ya guardados.
 
-## Cambios
-1. **Dejar una sola estrategia de teclado**
-   - Mantener la carga directa por `server.url`.
-   - Cambiar Capacitor Keyboard a modo `none`, para que el shell no vuelva a redimensionar una página que ya funciona correctamente con `visualViewport`/`100dvh`.
-   - En Android sustituir `adjustResize` por `adjustNothing` y eliminar cualquier redimensionamiento nativo duplicado.
-   - En iOS eliminar las claves `KeyboardResize=native` que fuerzan el reajuste adicional.
+Como `server.url` apunta a la PWA, el shell no debe imponer política de UI ni de notificaciones: la PWA ya lo hace.
 
-2. **Quitar correcciones que actualmente son código muerto**
-   - Retirar del `AppShell` la lógica manual de altura de teclado/viewport que no participa cuando existe `server.url`, evitando mantener dos soluciones contradictorias.
-   - No tocar cookies, localStorage, IndexedDB ni credenciales.
+## Cambios (shell mínimo, un último rebuild y listo)
 
-3. **Carga siempre revalidada de la web publicada**
-   - Conservar la limpieza exclusiva de caché HTTP en arranque, sin borrar sesión.
-   - Revalidar la URL remota al arrancar y al volver del background, con protección para no crear bucles de recarga ni interrumpir formularios activos.
-   - Confirmar que la navegación solicita el hash actual del JavaScript publicado.
+1. **Quitar el plugin Keyboard del shell**
+   - `capacitor.config.ts`: eliminar el bloque `Keyboard` completo. Sin `resize`, sin `resizeOnFullScreen`, sin `style`.
+   - No instalar/registrar `@capacitor/keyboard` desde el shell (la PWA maneja `visualViewport`/`100dvh`).
 
-4. **Completar el control de versión en el proyecto PWA**
-   - Publicar `/version.json` real con `Cache-Control: no-store` desde el proyecto `tech.hanging360.com`.
-   - Compararlo al iniciar, después del login y al volver al foreground; recargar una sola vez únicamente cuando cambie la versión.
-   - Este paso pertenece a la PWA y permitirá que futuros despliegues entren sin nuevos IPA/AAB.
+2. **Android sin resize duplicado y sin canales fijos**
+   - `AndroidManifest.xml`: `android:windowSoftInputMode="adjustNothing"` en la Activity.
+   - `MainActivity.java`: quitar creación de canales (`CHANNEL_ID` + `COMPAT_CHANNEL_IDS`) y quitar `webView.reload()` de `onCreate`/`onResume`. Los canales los crea la PWA vía plugins cuando envía notificaciones.
+   - Conservar solo: permisos runtime, cookies/DOM storage, e inmersivo si se quiere pantalla completa.
+   - Mantener `setCacheMode(LOAD_DEFAULT)` (revalidación normal HTTP); ya llega `Cache-Control: no-cache` desde la PWA.
 
-5. **Validación móvil**
-   - Probar abrir/cerrar el teclado en el chat: header fijo, lista de mensajes desplazable y composer justo encima del teclado, sin espacio blanco.
-   - Probar cierre/reapertura y foreground: versión vigente, sesión y permisos conservados.
+3. **iOS sin claves de teclado y sin recargas forzadas**
+   - `Info.plist`: eliminar `KeyboardResize` y `KeyboardResizeOnFullScreen`.
+   - `AppDelegate.swift`: quitar `URLCache.removeAllCachedResponses`, `capacities=0`, `reloadFromOrigin()` y `revalidateRemotePortal()`. Quitar registro de categorías/opciones de presentación (la PWA lo pide vía `@capacitor/push-notifications` cuando corresponda).
+   - Mantener solo lo estándar de Capacitor + delegate de push si la PWA lo usa.
+
+4. **StatusBar/SplashScreen: valores neutros**
+   - `capacitor.config.ts`: dejar `StatusBar` con overlays por defecto o quitarlo; quitar `PushNotifications.presentationOptions` y `LocalNotifications` (los define la PWA en tiempo de ejecución vía plugin).
+   - SplashScreen queda igual (solo estética de arranque).
+
+5. **AppShell.tsx (código muerto en build nativo)**
+   - Al usar `server.url`, `AppShell.tsx` no se ejecuta en la app instalada. Eliminar la lógica de teclado/badge/bridge de ahí para evitar mantener dos fuentes de verdad. Dejar solo el fallback web (`window.location.assign(CLIENT_URL)`).
+
+6. **Versión y actualización → responsabilidad de la PWA**
+   - La PWA ya sirve `index.html` con `no-cache`. Añadir en la PWA `/version.json` real + check on `visibilitychange` + reload post-login (documentado ya en `NOTIFICATIONS_SETUP.md`). El shell **no** fuerza recargas.
+
+## Resultado esperado
+- Teclado: sin doble resize; el chat sube igual que en Safari/Chrome sobre `tech.hanging360.com`.
+- Header pegado al display (sin gap) porque no manipulamos StatusBar/overlays desde el shell.
+- Sonidos/canales/badges los define la PWA vía plugins → cambios sin rebuild.
+- Sesión y permisos intactos (no borramos caché ni recargamos en foreground).
+- Futuros ajustes de UI/notificación: solo desplegar la PWA.
 
 ## Publicación necesaria
-La app que ya está instalada contiene la política nativa incorrecta de teclado; cambiarla exige **un último `git pull`, `npx cap sync` y rebuild de IPA/AAB**. Después de instalar esa versión corregida, las actualizaciones normales de la PWA se cargarán remotamente sin reconstruir la app.
-
-Al implementar, consultar también la guía oficial de Capacitor para sincronización y pruebas nativas.
+Un **último** `git pull` + `npx cap sync` + rebuild IPA/AAB para aplicar el shell mínimo. Después de ese build, no se requieren más builds para cambios de la PWA.

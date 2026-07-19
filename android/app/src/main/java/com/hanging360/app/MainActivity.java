@@ -1,20 +1,13 @@
 package com.hanging360.app;
 
 import android.Manifest;
-import android.app.NotificationChannel;
-import android.app.NotificationManager;
-import android.app.Notification;
 import android.content.pm.PackageManager;
 import android.webkit.CookieManager;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
-import android.media.AudioAttributes;
-import android.media.RingtoneManager;
-import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
-import android.view.WindowManager;
 
 import androidx.core.app.ActivityCompat;
 import androidx.core.view.WindowCompat;
@@ -28,24 +21,7 @@ import java.util.List;
 
 public class MainActivity extends BridgeActivity {
 
-    private static final String CHANNEL_ID = "hanging360_alerts";
-    // Compatibilidad con versiones ya publicadas de la PWA. Android fija el
-    // sonido la primera vez que crea cada channel ID; todos estos alias usan
-    // el tono predeterminado para evitar canales silenciosos por MP3 ausentes.
-    private static final String[] COMPAT_CHANNEL_IDS = {
-            "h360_default_sound_v2",
-            "h360_default",
-            "hanging360_message",
-            "hanging360_whatsapp",
-            "hanging360_appointment_new",
-            "hanging360_appointment_update",
-            "hanging360_payment",
-            "hanging360_call",
-            "hanging360_update"
-    };
     private static final int RUNTIME_PERMISSIONS_REQUEST = 360;
-    private static final long FOREGROUND_REVALIDATE_AFTER_MS = 30_000L;
-    private long pausedAt = 0L;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -58,26 +34,15 @@ public class MainActivity extends BridgeActivity {
         settings.setDomStorageEnabled(true);
         settings.setDatabaseEnabled(true);
         settings.setSaveFormData(true);
-        // The portal is remote and its HTML must always be revalidated. This
-        // clears only WebView's HTTP/resource cache; cookies, localStorage and
-        // IndexedDB remain intact so login and device settings are preserved.
-        settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
-        webView.clearCache(true);
+        // Cache HTTP estándar: la PWA ya envía Cache-Control adecuado.
+        settings.setCacheMode(WebSettings.LOAD_DEFAULT);
         CookieManager cookies = CookieManager.getInstance();
         cookies.setAcceptCookie(true);
         cookies.setAcceptThirdPartyCookies(webView, true);
 
-        // Re-request the configured server.url after Capacitor finishes its
-        // initial navigation. Posting avoids racing BridgeActivity startup.
-        webView.post(() -> {
-            webView.getSettings().setCacheMode(WebSettings.LOAD_NO_CACHE);
-            webView.reload();
-        });
-
         // Draw behind system bars so the WebView fills the entire screen
         WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
         hideSystemBars();
-        createNotificationChannel();
         requestRuntimePermissions();
     }
 
@@ -91,26 +56,8 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     protected void onPause() {
-        pausedAt = System.currentTimeMillis();
         CookieManager.getInstance().flush();
         super.onPause();
-    }
-
-    @Override
-    protected void onResume() {
-        super.onResume();
-        if (pausedAt == 0L
-                || System.currentTimeMillis() - pausedAt < FOREGROUND_REVALIDATE_AFTER_MS
-                || getBridge() == null) {
-            return;
-        }
-
-        WebView webView = getBridge().getWebView();
-        pausedAt = 0L;
-        webView.post(() -> {
-            webView.getSettings().setCacheMode(WebSettings.LOAD_NO_CACHE);
-            webView.reload();
-        });
     }
 
     @SuppressWarnings("deprecation")
@@ -130,43 +77,6 @@ public class MainActivity extends BridgeActivity {
                             | View.SYSTEM_UI_FLAG_FULLSCREEN
                             | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
         }
-    }
-
-    private void createNotificationChannel() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
-
-        NotificationManager nm = getSystemService(NotificationManager.class);
-        if (nm == null) return;
-
-        createAudibleChannel(nm, CHANNEL_ID, "Notificaciones Hanging360");
-        for (String id : COMPAT_CHANNEL_IDS) {
-            createAudibleChannel(nm, id, "Notificaciones Hanging360");
-        }
-    }
-
-    private void createAudibleChannel(NotificationManager nm, String id, String name) {
-        // No modificar un canal existente: Android conserva la elección del
-        // usuario. Los canales nuevos siempre nacen con importancia alta.
-        if (nm.getNotificationChannel(id) != null) return;
-
-        NotificationChannel channel = new NotificationChannel(
-                id,
-                name,
-                NotificationManager.IMPORTANCE_HIGH);
-        channel.setDescription("Avisos de citas y mensajes");
-        channel.enableVibration(true);
-        channel.enableLights(true);
-        channel.setShowBadge(true);
-        channel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
-
-        Uri sound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION);
-        AudioAttributes audio = new AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_NOTIFICATION)
-                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                .build();
-        channel.setSound(sound, audio);
-
-        nm.createNotificationChannel(channel);
     }
 
     private void requestRuntimePermissions() {
