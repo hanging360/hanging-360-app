@@ -13,6 +13,9 @@ const config: CapacitorConfig = {
     contentInset: 'never'
   },
   plugins: {
+    Keyboard: {
+      resize: 'none'
+    },
     SplashScreen: {
       launchShowDuration: 250,
       launchAutoHide: true,
