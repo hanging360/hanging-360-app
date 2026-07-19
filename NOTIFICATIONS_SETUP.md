@@ -46,13 +46,13 @@ shell con la política nativa de no-cache; no borra la sesión del usuario.
 - Sonido = `default` del sistema (no requiere archivos empaquetados)
 - `@capacitor/preferences` para conservar sesión y ajustes del dispositivo
 - Bridge `postMessage` para badge y permisos
-- Modo teclado nativo (`Keyboard.resize: 'native'`) — la WebView se
-  redimensiona sola, sin dejar franja blanca ni empujar el DOM.
+- El shell no incluye `@capacitor/keyboard`: la PWA administra el viewport
+  directamente con `visualViewport` y `100dvh`, sin un segundo resize nativo.
 
 ## Teclado en pantallas de chat (PWA)
 
-Con `resize: 'native'`, `window.innerHeight`, `100dvh` y `visualViewport.height`
-ya reflejan el alto visible por encima del teclado. Para que en el chat el
+Sin el plugin Keyboard en el shell, `window.innerHeight`, `100dvh` y
+`visualViewport.height` reflejan el área visible de WKWebView. Para que en el chat el
 **header de info del cliente** siga visible y **solo suba el composer**, la
 PWA debe estructurar la pantalla así:
 
@@ -61,16 +61,6 @@ PWA debe estructurar la pantalla así:
 .chat-header { position: sticky; top: 0; z-index: 10; }
 .chat-messages { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 .chat-composer { flex: 0 0 auto; padding-bottom: env(safe-area-inset-bottom); }
-```
-
-Opcional: el shell nativo también publica la altura del teclado por
-`postMessage` como
-`{ type: "HANGING360_KEYBOARD_HEIGHT", height: number }`
-(origin `https://tech.hanging360.com`) y la escribe en la CSS var `--kb-h`
-del documento, por si algún layout necesita ajustes finos:
-
-```css
-.chat-composer { padding-bottom: calc(env(safe-area-inset-bottom) + var(--kb-h, 0px)); }
 ```
 
 Al enfocar el input, hacer `messagesRef.current?.scrollTo({ top: scrollHeight })`
