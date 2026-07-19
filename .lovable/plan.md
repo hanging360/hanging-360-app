@@ -1,47 +1,46 @@
 ## Problema
 
-Solo dentro del Capacitor instalado (no en PWA ni web) al abrir el teclado:
-1. La página entera se empuja hacia arriba dejando un cuadro blanco debajo del input.
-2. En las pantallas de chat, la conversación se mete **debajo del header de info del cliente** y los mensajes anteriores dejan de ser legibles mientras escribes — se debería mover **solo el input del chat**, no toda la página.
+El IPA/AAB ya instalado carga `https://tech.hanging360.com/my-appointment` vía `server.url`. La PWA remota ya está actualizada (teclado + sonidos corregidos), pero la app nativa sigue mostrando la versión vieja: no toma los fixes sin reinstalar. No queremos generar un nuevo IPA/AAB.
 
 ## Causa
 
-`capacitor.config.ts` carga la PWA remota vía `server.url`. El plugin `@capacitor/keyboard` está en `resize: 'body'`, que reduce el `<body>` cuando aparece el teclado. Efectos:
-- El fondo del WebView queda visible como franja blanca bajo el body más corto.
-- En vistas de chat el layout no está anclado al `visualViewport`; el scroll interno arrastra la lista de mensajes bajo el header fijo (que no se recoloca) y solo se ve el último mensaje sobre el teclado.
+El WebView de Capacitor está sirviendo HTML/JS cacheado. Dos fuentes posibles, y las dos hay que neutralizar desde la **PWA remota** (proyecto Hanging360 Tech 1), porque el shell nativo ya está publicado y congelado:
 
-En Android además `android:windowSoftInputMode="adjustResize"` combinado con `resize: 'body'` provoca doble redimensionado.
+1. **Service Worker de la PWA** cacheando el app-shell con estrategia cache-first. En cuanto el SW toma control del scope, el WebView recibe siempre el bundle viejo aunque el servidor tenga uno nuevo.
+2. **HTTP cache del WebView** (WKWebView en iOS, WebView de Android) sirviendo `index.html` y assets con hash desde disco cuando los headers permiten cache larga.
 
-## Plan
+El shell nativo no puede forzar recarga del contenido remoto sin rebuild, así que la solución vive **100% en la PWA remota**.
 
-1. **Cambiar el modo de teclado del Capacitor a `native`**
-   - En `capacitor.config.ts` reemplazar `Keyboard.resize: 'body'` por `resize: 'native'` (el sistema redimensiona la WebView completa; sin franja blanca y sin tocar el DOM).
-   - Mantener `resizeOnFullScreen: true` y `style: 'light'`.
+## Plan (todo en la PWA remota — sin IPA/AAB nuevo)
 
-2. **Alinear Android**
-   - En `AndroidManifest.xml` mantener `android:windowSoftInputMode="adjustResize"` (compatible con `resize: 'native'`).
-   - Confirmar que `MainActivity` no fija `SOFT_INPUT_ADJUST_NOTHING` en modo inmersivo.
+1. **Auditar y neutralizar el Service Worker de la PWA**
+   - Revisar si existe `sw.js` / `service-worker.js` / `vite-plugin-pwa` registrado en `tech.hanging360.com`.
+   - Si existe y está cacheando el app-shell con cache-first: reemplazarlo por un **kill-switch worker** en la misma ruta (según skill PWA de Lovable) que en `activate` borre sus propias cachés Workbox, haga `clients.claim()`, navegue a los clientes abiertos y llame `self.registration.unregister()` en `finally`. Un solo release y el WebView queda limpio.
+   - Si el SW debe permanecer para push/offline: cambiar la estrategia de navegación HTML a **NetworkFirst** con timeout corto, dejar `CacheFirst` solo para assets hasheados, y añadir `skipWaiting()` + `clients.claim()` para que la próxima visita entregue la versión nueva sin esperar cierre de app.
 
-3. **Alinear iOS**
-   - En `Info.plist` añadir `KeyboardResize` = `native` y `KeyboardResizeOnFullScreen` = `YES` (algunas versiones del plugin leen del plist además del config).
+2. **Cache-busting de HTML en el servidor de la PWA**
+   - Servir `index.html` con `Cache-Control: no-cache, must-revalidate` para que el WebView revalide en cada arranque.
+   - Mantener assets con hash (`/assets/*.js`, `*.css`) con `immutable` — el nombre cambia en cada deploy y no requiere invalidación.
 
-4. **Corregir el chat: solo sube el input, no la página**
-   - Escuchar `Keyboard.addListener('keyboardWillShow' / 'keyboardWillHide')` desde el shell nativo y publicar la altura del teclado a la PWA por `postMessage` como `HANGING360_KEYBOARD_HEIGHT`.
-   - Exponer en la PWA una CSS var `--kb-h` alimentada por ese evento (ya sea vía el bridge del shell o directamente con `window.visualViewport` cuando la PWA se ejecuta dentro del Capacitor).
-   - En las pantallas de chat de la PWA (proyecto **Hanging360 Tech 1**): anclar el contenedor del chat con `height: calc(100dvh - var(--kb-h, 0px))`, mantener el header de info del cliente `position: sticky; top: 0`, la lista de mensajes con `flex: 1; overflow-y: auto; overscroll-behavior: contain`, y el composer con `padding-bottom: var(--kb-h, 0px)`. Al abrir el teclado, hacer `scrollIntoView({ block: 'end' })` sobre el último mensaje.
-   - Documentar el contrato del mensaje `HANGING360_KEYBOARD_HEIGHT` en `NOTIFICATIONS_SETUP.md` para el equipo de la PWA.
+3. **Detección de versión desde la PWA**
+   - Exponer un `/version.json` (o meta tag) que la PWA lea al montar. Si detecta versión distinta a la cargada en memoria, hace `location.reload()` una vez (guard con `sessionStorage` para no loopear).
+   - Esto obliga al WebView a pedir HTML fresco en cada foreground.
 
-5. **Limpieza CSS local**
-   - La variable `--app-height` solo la usa `.webview-screen` del `AppShell` interno (inactivo cuando `server.url` está fijado). Se mantiene sin cambios.
+4. **Recarga en foreground dentro del WebView**
+   - En la PWA, escuchar `visibilitychange`: cuando el documento vuelve a `visible`, disparar el check de versión del paso 3. Cubre el caso "usuario deja la app abierta días" sin depender del shell nativo.
 
-## Alcance nativo vs PWA
+5. **Recuperación única para usuarios ya afectados**
+   - El kill-switch del paso 1 los cura al primer arranque con red.
+   - Documentar en `NOTIFICATIONS_SETUP.md` que, para usuarios sin red que quedaron con bundle viejo, basta abrir la app con datos una sola vez — no requiere reinstalar.
 
-- Puntos 1–3 y el emisor del evento del punto 4 requieren **un rebuild IPA/AAB**.
-- El consumidor del evento (layout del chat con `--kb-h`, header sticky, composer anclado) se aplica en la **PWA remota** y sale al aire con un simple deploy, sin nueva app.
+## Alcance
+
+- **Nada que tocar en este proyecto (shell nativo)**: `capacitor.config.ts`, `MainActivity.java`, `AppDelegate.swift`, `Info.plist` quedan como están. No hay nuevo IPA ni AAB.
+- **Todo el trabajo pasa en el proyecto Hanging360 Tech 1** (la PWA `tech.hanging360.com`): auditar SW, publicar kill-switch o cambiar a NetworkFirst, ajustar headers de `index.html`, añadir `version.json` + recarga en foreground.
 
 ## Validación
 
-- App instalada: tocar cualquier input común (login, dialog) → el input queda justo sobre el teclado, sin franja blanca.
-- Chat: al enfocar el composer, el header del cliente permanece visible, la lista de mensajes se acorta y sigue scrolleable, y el último mensaje queda visible sobre el teclado. Ningún mensaje queda oculto bajo el header.
-- Repetir en iOS (Dynamic Island) y Android (gestos y botones).
-- Verificar que la PWA en Safari/Chrome sigue igual (sin regresión).
+- Publicar el cambio en la PWA.
+- Abrir la app nativa ya instalada, con red: al primer arranque debe recargar y mostrar los fixes del teclado (input pegado al teclado, chat con header sticky) y sonidos.
+- Segundo arranque: sin recarga visible, versión nueva estable.
+- Repetir tras un deploy posterior de la PWA para confirmar que el ciclo se auto-actualiza sin reinstalar.
