@@ -1,46 +1,74 @@
-## Problema
+# Por qué la app nativa sigue con la versión vieja
 
-El IPA/AAB ya instalado carga `https://tech.hanging360.com/my-appointment` vía `server.url`. La PWA remota ya está actualizada (teclado + sonidos corregidos), pero la app nativa sigue mostrando la versión vieja: no toma los fixes sin reinstalar. No queremos generar un nuevo IPA/AAB.
+El shell Capacitor apunta a `https://tech.hanging360.com/my-appointment` vía `server.url`. Ese shell ya está publicado y **no se toca** (no hay IPA/AAB nuevo). Si al abrirlo se ve la versión vieja aunque la PWA ya esté deployada con los fixes de teclado/sonido, la causa es una sola: el WebView está sirviendo HTML/JS cacheado. Dos fuentes posibles y las dos se arreglan **en el proyecto Hanging360 Tech 1 (la PWA)**:
 
-## Causa
+1. Un Service Worker registrado en `tech.hanging360.com` con estrategia cache-first para el app-shell — sigue entregando el bundle viejo aunque el server tenga uno nuevo.
+2. HTTP cache del WebView (WKWebView iOS / WebView Android) sirviendo `index.html` desde disco por headers de cache largos.
 
-El WebView de Capacitor está sirviendo HTML/JS cacheado. Dos fuentes posibles, y las dos hay que neutralizar desde la **PWA remota** (proyecto Hanging360 Tech 1), porque el shell nativo ya está publicado y congelado:
+El shell nativo no puede forzar recarga del contenido remoto sin rebuild. La solución vive 100% en la PWA remota.
 
-1. **Service Worker de la PWA** cacheando el app-shell con estrategia cache-first. En cuanto el SW toma control del scope, el WebView recibe siempre el bundle viejo aunque el servidor tenga uno nuevo.
-2. **HTTP cache del WebView** (WKWebView en iOS, WebView de Android) sirviendo `index.html` y assets con hash desde disco cuando los headers permiten cache larga.
+## Qué hacer en la PWA remota (proyecto Hanging360 Tech 1)
 
-El shell nativo no puede forzar recarga del contenido remoto sin rebuild, así que la solución vive **100% en la PWA remota**.
+### 1. Auditar y neutralizar el Service Worker
+- Buscar `sw.js`, `service-worker.js`, `vite-plugin-pwa`, `virtual:pwa-register` o `workbox-*` en el repo de la PWA.
+- Si existe y cachea el app-shell con cache-first: publicar **en la misma ruta** el kill-switch worker del skill PWA de Lovable — en `activate` borra sus propias cachés Workbox, hace `clients.claim()`, navega los clientes abiertos y llama `self.registration.unregister()` en `finally`. Un solo release limpia el WebView.
+- Si el SW debe permanecer (push background, offline): navegaciones HTML a **NetworkFirst** con timeout corto, `CacheFirst` solo para `/assets/*` con hash, `skipWaiting()` + `clients.claim()`.
 
-## Plan (todo en la PWA remota — sin IPA/AAB nuevo)
+### 2. Headers de cache del hosting
+- `index.html` → `Cache-Control: no-cache, must-revalidate`
+- `/assets/*.js`, `/assets/*.css` (con hash) → `Cache-Control: public, max-age=31536000, immutable`
 
-1. **Auditar y neutralizar el Service Worker de la PWA**
-   - Revisar si existe `sw.js` / `service-worker.js` / `vite-plugin-pwa` registrado en `tech.hanging360.com`.
-   - Si existe y está cacheando el app-shell con cache-first: reemplazarlo por un **kill-switch worker** en la misma ruta (según skill PWA de Lovable) que en `activate` borre sus propias cachés Workbox, haga `clients.claim()`, navegue a los clientes abiertos y llame `self.registration.unregister()` en `finally`. Un solo release y el WebView queda limpio.
-   - Si el SW debe permanecer para push/offline: cambiar la estrategia de navegación HTML a **NetworkFirst** con timeout corto, dejar `CacheFirst` solo para assets hasheados, y añadir `skipWaiting()` + `clients.claim()` para que la próxima visita entregue la versión nueva sin esperar cierre de app.
+### 3. Check de versión + recarga en foreground
+- Publicar `/version.json` = `{ "version": "<git-sha>" }`.
+- Al montar la app y en cada `document.visibilitychange → visible`, `fetch('/version.json', { cache: 'no-store' })`. Si difiere de la versión en memoria, un único `location.reload()` (guardar en `sessionStorage` para evitar loops).
+- Esto cubre el caso "el usuario dejó la app abierta" — la próxima vez que la trae al frente, recarga sola.
 
-2. **Cache-busting de HTML en el servidor de la PWA**
-   - Servir `index.html` con `Cache-Control: no-cache, must-revalidate` para que el WebView revalide en cada arranque.
-   - Mantener assets con hash (`/assets/*.js`, `*.css`) con `immutable` — el nombre cambia en cada deploy y no requiere invalidación.
+### 4. Layout de teclado en la PWA (confirmar que quedó bien)
+Con `Keyboard.resize: 'native'` del shell, `100dvh` y `visualViewport.height` ya reflejan el alto visible por encima del teclado. La pantalla de chat debe estructurarse así en la PWA para que **el header "Info cliente" quede sticky** y **solo suba el composer** (no toda la página, que es lo que se ve en IMG_4328/4329/4330):
 
-3. **Detección de versión desde la PWA**
-   - Exponer un `/version.json` (o meta tag) que la PWA lea al montar. Si detecta versión distinta a la cargada en memoria, hace `location.reload()` una vez (guard con `sessionStorage` para no loopear).
-   - Esto obliga al WebView a pedir HTML fresco en cada foreground.
+```css
+.chat-screen   { display:flex; flex-direction:column; height:100dvh; }
+.chat-header   { position:sticky; top:0; z-index:10; }
+.chat-messages { flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain; }
+.chat-composer { flex:0 0 auto; padding-bottom:calc(env(safe-area-inset-bottom) + var(--kb-h, 0px)); }
+```
 
-4. **Recarga en foreground dentro del WebView**
-   - En la PWA, escuchar `visibilitychange`: cuando el documento vuelve a `visible`, disparar el check de versión del paso 3. Cubre el caso "usuario deja la app abierta días" sin depender del shell nativo.
+Al hacer focus en el input: `lastMessage.scrollIntoView({ block: 'end' })`.
 
-5. **Recuperación única para usuarios ya afectados**
-   - El kill-switch del paso 1 los cura al primer arranque con red.
-   - Documentar en `NOTIFICATIONS_SETUP.md` que, para usuarios sin red que quedaron con bundle viejo, basta abrir la app con datos una sola vez — no requiere reinstalar.
+Si tras el kill-switch la app nativa sigue mostrando la franja blanca bajo el input, el problema ya no es el cache — es que la PWA todavía usa `min-height: 100vh` o mide `window.innerHeight` una sola vez. Revisar y cambiar a `100dvh` + escuchar `visualViewport.resize`.
 
-## Alcance
+## Qué NO se toca aquí
 
-- **Nada que tocar en este proyecto (shell nativo)**: `capacitor.config.ts`, `MainActivity.java`, `AppDelegate.swift`, `Info.plist` quedan como están. No hay nuevo IPA ni AAB.
-- **Todo el trabajo pasa en el proyecto Hanging360 Tech 1** (la PWA `tech.hanging360.com`): auditar SW, publicar kill-switch o cambiar a NetworkFirst, ajustar headers de `index.html`, añadir `version.json` + recarga en foreground.
+`capacitor.config.ts`, `MainActivity.java`, `AppDelegate.swift`, `Info.plist`, plugins, canales de notificación, `AppShell.tsx` — todo el shell nativo queda como está. **No hay IPA nuevo, no hay AAB nuevo.**
 
 ## Validación
 
-- Publicar el cambio en la PWA.
-- Abrir la app nativa ya instalada, con red: al primer arranque debe recargar y mostrar los fixes del teclado (input pegado al teclado, chat con header sticky) y sonidos.
-- Segundo arranque: sin recarga visible, versión nueva estable.
-- Repetir tras un deploy posterior de la PWA para confirmar que el ciclo se auto-actualiza sin reinstalar.
+1. Deploy de la PWA con kill-switch + headers + `version.json`.
+2. Abrir la app nativa ya instalada con red: primer arranque recarga sola y muestra los fixes de teclado y sonido.
+3. Segundo arranque: sin recarga visible, versión estable.
+4. Nuevo deploy de la PWA después: la app se actualiza sola al volver a foreground, sin reinstalar.
+
+## Detalle técnico (referencia)
+
+El kill-switch worker (`public/sw.js` en la PWA):
+
+```js
+function isWorkboxCacheForThisRegistration(name) {
+  return /(^|-)precache-v\d+-|(^|-)runtime-|(^|-)googleAnalytics-/.test(name)
+    && name.endsWith(self.registration.scope);
+}
+self.addEventListener("install", () => self.skipWaiting());
+self.addEventListener("activate", (event) => event.waitUntil((async () => {
+  try {
+    const names = (await caches.keys()).filter(isWorkboxCacheForThisRegistration);
+    await Promise.allSettled(names.map((n) => caches.delete(n)));
+    await self.clients.claim();
+    const wins = await self.clients.matchAll({ type: "window" });
+    await Promise.allSettled(wins.map((c) => c.navigate(c.url)));
+  } finally {
+    await self.registration.unregister();
+  }
+})()));
+```
+
+Este proyecto (shell nativo) solo actualizará `.lovable/plan.md` y `NOTIFICATIONS_SETUP.md` para dejar la instrucción por escrito al equipo de la PWA. Cero cambios de código nativo, cero rebuild.
