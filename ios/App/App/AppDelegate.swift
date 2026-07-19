@@ -7,25 +7,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        // The remote PWA owns its keyboard layout through visualViewport/100dvh.
-        // Prevent UIKit from adding a second automatic safe-area inset to the
-        // WKWebView scroll surface.
-        DispatchQueue.main.async { [weak self] in
-            self?.configureRemoteWebViewInsets()
-        }
         return true
-    }
-
-    private func configureRemoteWebViewInsets() {
-        guard
-            let bridgeController = window?.rootViewController as? CAPBridgeViewController,
-            let webView = bridgeController.webView
-        else { return }
-
-        webView.scrollView.contentInsetAdjustmentBehavior = .never
-        webView.scrollView.automaticallyAdjustsScrollIndicatorInsets = false
-        webView.scrollView.contentInset = .zero
-        webView.scrollView.scrollIndicatorInsets = .zero
     }
 
     func applicationWillResignActive(_ application: UIApplication) {
@@ -43,7 +25,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     func applicationDidBecomeActive(_ application: UIApplication) {
-        configureRemoteWebViewInsets()
+        // Restart any tasks that were paused while the application was inactive.
     }
 
     func applicationWillTerminate(_ application: UIApplication) {

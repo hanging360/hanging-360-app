@@ -1,25 +1,29 @@
-## Problema exacto
-La captura confirma que no es un fallo visual de la PWA: iOS está reduciendo el `WKWebView` y deja una superficie blanca del tamaño del teclado. Aunque se eliminó la configuración `Keyboard` de `capacitor.config.ts`, el plugin `@capacitor/keyboard` sigue instalado y registrado en el proyecto nativo (`Package.swift` en iOS y `capacitor.build.gradle` en Android). Por eso el shell todavía puede intervenir sobre el viewport.
+## Problema confirmado
+La captura muestra que el contenido web termina correctamente al abrir el campo, pero el teclado de iOS no dibuja sus teclas: únicamente aparece la barra nativa de anterior/siguiente/aceptar sobre una superficie blanca. Por tanto, no es el `100dvh`, el scroll ni una versión antigua de la PWA; es la presentación nativa del teclado dentro del `WKWebView` instalado.
 
-## Cambios
-1. **Desinstalar completamente `@capacitor/keyboard`**
-   - Retirarlo de `package.json` y del lockfile.
-   - Eliminarlo de la integración nativa iOS/Android mediante la sincronización de Capacitor, en vez de limitarse a quitar su bloque de configuración.
-   - Quitar el wrapper `Keyboard` que ya no debe existir en el shell.
+El plugin `@capacitor/keyboard` ya no figura en `package.json` ni en `Package.swift`, así que no volveremos a cambiar CSS, altura o resize de la PWA. Además, Capacitor ya establece por defecto `contentInsetAdjustmentBehavior = .never`, por lo que el código adicional de `AppDelegate` que fuerza repetidamente los insets es redundante y se eliminará.
 
-2. **Dejar iOS como WebView transparente**
-   - Mantener `AppDelegate.swift` sin observadores ni manipulación del teclado.
-   - Configurar el `WKWebView` para que no añada insets automáticos extra al scroll y restablecer cualquier inset inferior residual.
-   - No alterar el DOM, `100dvh` ni el CSS de la PWA remota.
+## Arreglo
+1. **Restaurar el `WKWebView` estándar de Capacitor en iOS**
+   - Quitar de `AppDelegate.swift` la manipulación manual de `contentInset`, `scrollIndicatorInsets` y `contentInsetAdjustmentBehavior`.
+   - Dejar que `CAPBridgeViewController` administre el WebView y el teclado sin modificaciones privadas ni observadores.
 
-3. **Evitar una política incorrecta equivalente en Android**
-   - Mantener el shell sin plugin Keyboard.
-   - Cambiar `adjustNothing` por el comportamiento estándar compatible con una PWA que usa `visualViewport`, evitando congelar o desplazar incorrectamente el WebView.
+2. **Fijar explícitamente la política soportada por Capacitor**
+   - Declarar `ios.contentInset: 'never'` en `capacitor.config.ts`, en lugar de modificar el `WKWebView` después de crearlo.
+   - Mantener ausente `@capacitor/keyboard`; no añadir resize, listeners, offsets ni puentes hacia la PWA.
 
-4. **Validación nativa**
-   - Confirmar que el plugin Keyboard ya no aparece en las dependencias nativas generadas.
-   - Verificar compilación y sincronización de iOS/Android.
-   - Probar login y chat con teclado: la página debe conservar el alto visible, sin cuadro blanco, y solo el navegador/PWA debe responder al teclado.
+3. **Validar la integración nativa**
+   - Confirmar que Keyboard no reaparece en SPM/Gradle.
+   - Sincronizar Capacitor y comprobar que iOS compila con el `AppDelegate` estándar.
+   - Probar email, contraseña y chat en iPhone: deben verse las teclas completas inmediatamente y la barra ↑ ↓ ✓ debe quedar pegada encima del teclado, no flotando sobre un bloque blanco.
 
-## Alcance de publicación
-Este defecto está dentro del binario nativo ya instalado, no en la página publicada. La corrección exige una actualización final de IPA/AAB porque hay que retirar el plugin que está compilado dentro de Capacitor; después, los cambios de contenido y layout de la PWA seguirán llegando remotamente sin reconstruir la app.
+## Alcance
+La imagen prueba un fallo de la capa nativa instalada. Este ajuste requiere actualizar el binario iOS una vez; no modifica la PWA ni obliga a reconstruir futuros cambios web.
+
+<presentation-actions>
+  <presentation-open-history>View History</presentation-open-history>
+</presentation-actions>
+
+<presentation-actions>
+<presentation-link url="https://docs.lovable.dev/tips-tricks/troubleshooting">Troubleshooting docs</presentation-link>
+</presentation-actions>
