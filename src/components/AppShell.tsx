@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { SplashScreen, StatusBar, isNativePlatform, getPlatform } from "../lib/capacitorPlugins";
+import { SplashScreen, StatusBar, Keyboard, isNativePlatform, getPlatform } from "../lib/capacitorPlugins";
 import { initPushNotifications, postStoredPushTokenToWebApp, clearBadge, setBadgeCount } from "../services/pushNotifications";
 import { installWebBridge, setBridgeTarget } from "../services/webBridge";
 
@@ -21,6 +21,9 @@ export default function AppShell() {
       initPushNotifications(iframeRef.current?.contentWindow);
       installWebBridge(iframeRef.current?.contentWindow);
       clearBadge();
+      // Force native resize mode so the WebView (not the DOM body) shrinks
+      // when the keyboard appears — eliminates the white gap under inputs.
+      Keyboard.setResizeMode?.({ mode: "native" }).catch(() => {});
       if (isAndroid) {
         // Android: modo inmersivo (ocultar status/nav bar)
         StatusBar.hide().catch(() => {});
@@ -36,6 +39,29 @@ export default function AppShell() {
       window.location.assign(CLIENT_URL);
     }
   }, [isNative, isAndroid]);
+
+  // Bridge keyboard height to the remote PWA so the chat composer can anchor
+  // itself above the keyboard without pushing the whole page (header stays
+  // visible, only the composer/messages list re-flow).
+  useEffect(() => {
+    if (!isNative) return;
+    const post = (height: number) => {
+      const win = iframeRef.current?.contentWindow;
+      const payload = { type: "HANGING360_KEYBOARD_HEIGHT", height };
+      try { win?.postMessage(payload, CLIENT_URL); } catch {}
+      document.documentElement.style.setProperty("--kb-h", `${height}px`);
+    };
+    const handles: Array<{ remove?: () => void } | undefined> = [];
+    Keyboard.addListener("keyboardWillShow", (info) => post(info?.keyboardHeight ?? 0))
+      .then((h) => handles.push(h as any)).catch(() => {});
+    Keyboard.addListener("keyboardDidShow", (info) => post(info?.keyboardHeight ?? 0))
+      .then((h) => handles.push(h as any)).catch(() => {});
+    Keyboard.addListener("keyboardWillHide", () => post(0))
+      .then((h) => handles.push(h as any)).catch(() => {});
+    Keyboard.addListener("keyboardDidHide", () => post(0))
+      .then((h) => handles.push(h as any)).catch(() => {});
+    return () => { handles.forEach((h) => h?.remove?.()); };
+  }, [isNative]);
 
   // Limpiar badge al volver a foreground y escuchar mensajes del portal
   useEffect(() => {
