@@ -7,6 +7,21 @@ import WebKit
 class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterDelegate {
 
     var window: UIWindow?
+    private var enteredBackgroundAt: Date?
+    private let foregroundRevalidateInterval: TimeInterval = 30
+
+    private func revalidateRemotePortal() {
+        guard
+            let bridgeController = window?.rootViewController as? CAPBridgeViewController,
+            let webView = bridgeController.bridge?.webView
+        else { return }
+
+        webView.configuration.websiteDataStore.httpCookieStore.getAllCookies { _ in
+            DispatchQueue.main.async {
+                webView.reloadFromOrigin()
+            }
+        }
+    }
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         // Revalidate the remote Capacitor portal on every cold start without
@@ -27,17 +42,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
         })
         center.setNotificationCategories(categories)
 
-        DispatchQueue.main.async { [weak self] in
-            guard
-                let bridgeController = self?.window?.rootViewController as? CAPBridgeViewController,
-                let webView = bridgeController.bridge?.webView
-            else { return }
-            webView.configuration.websiteDataStore.httpCookieStore.getAllCookies { _ in
-                DispatchQueue.main.async {
-                    webView.reloadFromOrigin()
-                }
-            }
-        }
+        DispatchQueue.main.async { [weak self] in self?.revalidateRemotePortal() }
         return true
     }
 
@@ -49,6 +54,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
     func applicationDidEnterBackground(_ application: UIApplication) {
         // Use this method to release shared resources, save user data, invalidate timers, and store enough application state information to restore your application to its current state in case it is terminated later.
         // If your application supports background execution, this method is called instead of applicationWillTerminate: when the user quits.
+        enteredBackgroundAt = Date()
     }
 
     func applicationWillEnterForeground(_ application: UIApplication) {
@@ -59,6 +65,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
         // El contador pertenece al estado de notificaciones de la PWA. No se
         // borra automáticamente al abrir la app; Badge.clear() lo hará cuando
         // el usuario haya leído realmente las alertas.
+        if let backgroundDate = enteredBackgroundAt,
+           Date().timeIntervalSince(backgroundDate) >= foregroundRevalidateInterval {
+            enteredBackgroundAt = nil
+            revalidateRemotePortal()
+        }
     }
 
     func applicationWillTerminate(_ application: UIApplication) {
