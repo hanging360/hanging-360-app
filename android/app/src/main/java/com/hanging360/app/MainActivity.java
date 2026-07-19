@@ -44,6 +44,8 @@ public class MainActivity extends BridgeActivity {
             "hanging360_update"
     };
     private static final int RUNTIME_PERMISSIONS_REQUEST = 360;
+    private static final long FOREGROUND_REVALIDATE_AFTER_MS = 30_000L;
+    private long pausedAt = 0L;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -89,8 +91,26 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     protected void onPause() {
+        pausedAt = System.currentTimeMillis();
         CookieManager.getInstance().flush();
         super.onPause();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (pausedAt == 0L
+                || System.currentTimeMillis() - pausedAt < FOREGROUND_REVALIDATE_AFTER_MS
+                || getBridge() == null) {
+            return;
+        }
+
+        WebView webView = getBridge().getWebView();
+        pausedAt = 0L;
+        webView.post(() -> {
+            webView.getSettings().setCacheMode(WebSettings.LOAD_NO_CACHE);
+            webView.reload();
+        });
     }
 
     @SuppressWarnings("deprecation")

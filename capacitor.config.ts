@@ -35,8 +35,10 @@ const config: CapacitorConfig = {
       backgroundColor: '#ffffffff'
     },
     Keyboard: {
-      resize: 'native',
-      resizeOnFullScreen: true,
+      // La PWA remota ya administra 100dvh/visualViewport. Evita que
+      // Capacitor reduzca por segunda vez el WebView al abrir el teclado.
+      resize: 'none',
+      resizeOnFullScreen: false,
       style: 'light'
     }
   }
