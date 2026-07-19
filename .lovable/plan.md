@@ -1,43 +1,37 @@
-## Problema exacto
-La PWA publicada y el wrapper nativo están usando políticas incompatibles:
+## Objetivo
+Automatizar `npx cap sync` (iOS + Android) en cada push a `main` de GitHub, para que no tengas que correrlo localmente. El "git pull" no aplica en CI (el workflow ya clona el repo), pero el efecto es el mismo: cada cambio que Lovable sube a GitHub queda sincronizado con las carpetas nativas automáticamente.
 
-- El wrapper Capacitor ya no incluye `@capacitor/keyboard`.
-- La PWA todavía intenta escuchar ese plugin y, al mismo tiempo, aplica `visualViewport`, `100dvh`, alturas/offsets propios y clases `keyboard-open`.
-- En iOS, `visualViewport` dentro de Capacitor no refleja el teclado igual que Safari. Cuando no llega el evento del plugin, quedan alturas y posiciones inconsistentes: aparece la superficie blanca, la barra ↑ ↓ ✓ queda flotando, el chat se mete bajo “Info cliente” y el compositor oculta mensajes.
-- El ajuste universal de Apple para `.safe-area-top` añade como mínimo 8 px incluso cuando el WebView ya entregó el área segura, explicando la separación adicional del header dentro de Capacitor.
+## Qué se creará
 
-## Implementación coordinada
+**Un solo archivo nuevo:** `.github/workflows/cap-sync.yml`
 
-### 1. Wrapper Capacitor: restaurar una sola fuente nativa para el teclado
-- Reinstalar `@capacitor/keyboard` con la misma versión mayor de Capacitor.
-- Configurar iOS con `Keyboard.resize: 'none'`: el WebView conserva su tamaño y la PWA recibe `keyboardWillShow/keyboardWillHide` para controlar únicamente su layout.
-- Mantener `ios.contentInset: 'never'` y eliminar cualquier ajuste manual de frame/insets.
-- En Android usar `adjustNothing`, para evitar que Android reduzca el WebView además del ajuste realizado por la PWA.
-- No añadir cálculos ni CSS de teclado al wrapper.
+Este workflow:
+1. Se dispara en cada `push` a `main` que toque `capacitor.config.ts`, `package.json`, `package-lock.json`, `src/**`, `public/**`, `ios/**` o `android/**` (y también manualmente con "Run workflow").
+2. Instala Node 20 + dependencias con `npm ci`.
+3. Corre `npm run build`.
+4. Corre `npx cap sync ios` y `npx cap sync android`.
+5. Si los directorios `ios/` o `android/` cambian, hace commit automático de vuelta a `main` con mensaje `chore: cap sync [skip ci]` (usa `stefanzweifel/git-auto-commit-action`).
 
-### 2. PWA: eliminar el manejo duplicado
-- Hacer que `nativeKeyboard.ts` sea la única fuente de estado cuando `Capacitor.isNativePlatform()` sea verdadero.
-- En modo nativo, usar exclusivamente la altura de `keyboardWillShow/keyboardWillHide`; no combinarla con diferencias de `visualViewport`.
-- En navegador/PWA instalado, conservar `visualViewport` como fallback, sin acceder al plugin.
-- Limpiar siempre clases y variables al cerrar teclado, cambiar de ruta, volver del background o desmontar componentes, evitando offsets persistentes.
+## Flujo resultante
 
-### 3. Layout del chat
-- Mantener un contenedor raíz fijo a la altura visual disponible.
-- Dejar “Info cliente” en una fila superior estable.
-- Convertir solo la lista de mensajes en la zona desplazable (`min-height: 0; overflow-y: auto`).
-- Anclar el compositor inmediatamente encima del teclado mediante la variable nativa, sin desplazar toda la página.
-- Al enfocar el input o cambiar la altura del teclado, desplazar la conversación al mensaje activo/último mensaje para que siga legible.
+```text
+Lovable edita código → push a main
+        ↓
+GitHub Action: npm ci → build → npx cap sync
+        ↓
+Si ios/ o android/ cambian → commit automático a main
+        ↓
+Codemagic detecta el push y compila IPA/AAB con los nativos ya sincronizados
+```
 
-### 4. Safe-area y cambios de Apple
-- Quitar el mínimo universal de 8 px de `.safe-area-top`; usar únicamente `env(safe-area-inset-top, 0px)`.
-- Aplicar safe-area una sola vez en el header raíz, no también en contenedores internos.
-- Conservar objetivos táctiles de 44×44 px, pero desacoplarlos de padding, altura de página y viewport.
+## Requisitos / permisos
 
-### 5. Validación
-- Verificar login, contraseña, diálogos y chat en Safari/PWA sin regresión.
-- Verificar en Capacitor iOS que el teclado completo aparezca, la barra ↑ ↓ ✓ quede sobre las teclas y no exista bloque blanco.
-- Verificar que “Info cliente” permanezca visible, solo se desplace la lista y el compositor quede sobre el teclado.
-- Verificar Android con el mismo comportamiento y sin doble resize.
+- El workflow necesita `permissions: contents: write` para poder commitear (ya incluido en el YAML).
+- No requiere secretos adicionales; usa el `GITHUB_TOKEN` que GitHub inyecta.
+- Si tienes protección de rama en `main` que bloquea pushes directos, hay que permitir al bot de Actions o cambiar el destino a una rama `cap-sync/*` + PR automático (dímelo y ajusto el plan).
 
-## Entrega
-Este cambio requiere una sincronización y un rebuild final del wrapper porque restaura el plugin nativo. Después, futuras correcciones visuales del chat, sonidos y contenido seguirán publicándose desde la PWA sin nuevos IPA/AAB.
+## Fuera de alcance
+- No modifica `codemagic.yaml`, ni el shell nativo, ni la PWA.
+- No corre en cada commit de Codemagic — Codemagic seguirá compilando como hoy, solo que sobre carpetas nativas ya sincronizadas.
+
+¿Apruebas para implementarlo?
