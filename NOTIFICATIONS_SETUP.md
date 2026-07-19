@@ -3,6 +3,40 @@
 La app Capacitor es un shell que carga `https://tech.hanging360.com/my-appointment`.
 Toda la lógica de notificaciones vive en la PWA. El shell nativo solo expone:
 
+## ⚠️ Actualización remota del WebView (sin rebuild IPA/AAB)
+
+El shell nativo ya está publicado y **no se reconstruye**. Todos los fixes
+(teclado, sonidos, layout de chat) llegan al usuario final por deploy de la
+PWA. Si la app instalada sigue mostrando la versión vieja tras un deploy,
+es porque el WebView sirve HTML/JS cacheado. Todo esto se resuelve en el
+**proyecto Hanging360 Tech 1** (la PWA), no en el shell.
+
+### 1. Service Worker
+Auditar `tech.hanging360.com` en busca de `sw.js` / `service-worker.js` /
+`vite-plugin-pwa`. Si el SW cachea el app-shell con estrategia cache-first
+publicar en la **misma ruta** el kill-switch worker del skill PWA de
+Lovable: en `activate` borra sus cachés Workbox, hace `clients.claim()`,
+navega los clientes abiertos y llama `self.registration.unregister()` en
+`finally`. Un solo release limpia el WebView.
+
+Si el SW debe permanecer (push, offline): cambiar navegaciones HTML a
+**NetworkFirst** con timeout corto, dejar `CacheFirst` solo para assets con
+hash, y añadir `self.skipWaiting()` + `clients.claim()`.
+
+### 2. Headers de la PWA
+- `index.html` → `Cache-Control: no-cache, must-revalidate`
+- `/assets/*.js`, `/assets/*.css` (con hash) → `Cache-Control: public, max-age=31536000, immutable`
+
+### 3. Check de versión en la PWA
+Publicar `/version.json` (`{ "version": "<git-sha>" }`). Al montar la app y
+en cada `visibilitychange → visible`, hacer fetch con
+`cache: 'no-store'`; si difiere de la versión en memoria, un único
+`location.reload()` (guardar el sha en `sessionStorage` para evitar loops).
+
+### 4. Recuperación de usuarios ya afectados
+Al primer arranque con red, el kill-switch + los headers los ponen al día
+sin reinstalar. No requiere acción del usuario.
+
 - Un único **channel ID estable**: `hanging360_alerts` (Android)
 - Sonido = `default` del sistema (no requiere archivos empaquetados)
 - `@capacitor/preferences` para conservar sesión y ajustes del dispositivo
